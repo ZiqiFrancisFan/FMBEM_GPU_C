@@ -151,8 +151,11 @@ int genTransMat(const float wavNum, const cartCoord* vec, const int numVec, cons
 void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const int numCol, 
         const int lda);
 
-int genTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
+int genRRTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
         cuFloatComplex* transMat);
+
+int genRRCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
+        cuFloatComplex *mat);
 
 #endif /* NUMERICAL_H */
 

@@ -453,7 +453,7 @@ __global__ void rrTransMatsGen(cuFloatComplex *mats_enl,const int maxNum,
     }
 }
 
-int genTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
+int genRRTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
         cuFloatComplex* transMat)
 {
     int matSize;
@@ -481,3 +481,163 @@ int genTransMat(const float wavNum, const cartCoord* vec, const int numVec, cons
     return EXIT_SUCCESS;
 }
 
+__host__ void rrCoaxTransMatsInit(const float wavNum, const float *vec, const int numVec, 
+        const int p, cuFloatComplex *mat) {
+    int np, matRowIdx, matColIdx;
+    int matSize = (2*p-1)*(2*p-1);
+    cuFloatComplex matElem;
+    int matStartIdx, matElemIdx, i;
+    
+    for(int i=0;i<numVec;i++) {
+        matStartIdx = matSize*matSize*i;
+        for(matRowIdx=0;matRowIdx<matSize;matRowIdx++) {
+            for(matColIdx=0;matColIdx<matSize;matColIdx++) {
+                matElemIdx = IDXC0(matRowIdx,matColIdx,matSize);
+                mat[matStartIdx+matElemIdx] = make_cuFloatComplex(0,0);
+            }
+        }
+    }
+    for(i=0;i<numVec;i++) {
+        //Find the head index of the current translation matrix; 
+        matStartIdx = matSize*matSize*i;
+        for(np=0;np<=2*p-2;np++) {
+            matRowIdx = NM2IDX0(np,0);
+            matColIdx = NM2IDX0(0,0);
+            matElemIdx = IDXC0(matRowIdx,matColIdx,matSize);
+            matElem = make_cuFloatComplex(pow(-1,np)*sqrt(2*np+1)*gsl_sf_bessel_jl(np,wavNum*vec[i]),0);
+            mat[matStartIdx+matElemIdx] = matElem;
+        }
+    }
+}
+
+__device__ void rrCoaxTransMatGen(cuFloatComplex *enlMat, const int p, cuFloatComplex *mat) 
+{
+    int np, n, m;
+    int i, j;
+    cuFloatComplex temp[6];
+    float tp[3];
+    int idx;
+    
+    for(m=0;m+1<=p-1;m++) {
+        for(np=m+1;np<=2*p-2-(m+1);np++) {
+            tp[0] = bCoeff(np,-m-1)/bCoeff(m+1,-m-1);
+            tp[1] = bCoeff(np+1,m)/bCoeff(m+1,-m-1);
+            i = NM2IDX0(np-1,m);
+            j = NM2IDX0(m,m);
+            idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+            temp[0] = enlMat[idx];
+            i = NM2IDX0(np+1,m);
+            j = NM2IDX0(m,m);
+            idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+            temp[1] = enlMat[idx];
+            temp[2] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),tp[0]*cuCimagf(temp[0]));
+            temp[3] = make_cuFloatComplex(tp[1]*cuCrealf(temp[1]),tp[1]*cuCimagf(temp[1]));
+            temp[4] = cuCsubf(temp[2],temp[3]);
+            i = NM2IDX0(np,m+1);
+            j = NM2IDX0(m+1,m+1);
+            idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+            enlMat[idx] = temp[4];
+        }
+    }
+    
+    for(m=0;m<=p-2;m++) {
+        for(n=m;n+1<=p-1;n++) {
+            for(np=m;np<=2*p-2-(n+1);np++) {
+                tp[0] = aCoeff(np-1,m)/aCoeff(n,m);
+                tp[1] = aCoeff(np,m)/aCoeff(n,m);
+                tp[2] = aCoeff(n-1,m)/aCoeff(n,m);
+                if(np-1>=m) {
+                    i = NM2IDX0(np-1,m);
+                    j = NM2IDX0(n,m);
+                    idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                    temp[0] = enlMat[idx];
+                } else {
+                    temp[0] = make_cuFloatComplex(0,0);
+                }
+                i = NM2IDX0(np+1,m);
+                j = NM2IDX0(n,m);
+                idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[1] = enlMat[idx];
+                if(n-1>=m) {
+                    i = NM2IDX0(np,m);
+                    j = NM2IDX0(n-1,m);
+                    idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                    temp[2] = enlMat[idx];
+                } else {
+                    temp[2] = make_cuFloatComplex(0,0);
+                }
+                temp[3] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),tp[0]*cuCimagf(temp[0]));
+                temp[4] = make_cuFloatComplex(tp[1]*cuCrealf(temp[1]),tp[1]*cuCimagf(temp[1]));
+                temp[5] = make_cuFloatComplex(tp[2]*cuCrealf(temp[2]),tp[2]*cuCimagf(temp[2]));
+                i = NM2IDX0(np,m);
+                j = NM2IDX0(n+1,m);
+                idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                enlMat[idx] = cuCaddf(cuCsubf(temp[3],temp[4]),temp[5]);
+            }
+        }
+    }
+    
+    for(m=-1;m>=-(p-1);m--) {
+        for(np=abs(m);np<=p-1;np++) {
+            for(n=abs(m);n<=p-1;n++) {
+                i = NM2IDX0(np,abs(m));
+                j = NM2IDX0(n,abs(m));
+                idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[0] = enlMat[idx];
+                i = NM2IDX0(np,m);
+                j = NM2IDX0(n,m);
+                idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                enlMat[idx] = temp[0];
+            }
+        }
+    }
+    
+    for(i=0;i<=p*p-1;i++) {
+        for(j=0;j<=p*p-1;j++) {
+            idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+            temp[0] = enlMat[idx];
+            idx = IDXC0(i,j,p*p);
+            mat[idx] = temp[0];
+        }
+    }
+}
+
+__global__ void rrCoaxTransMatsGen(cuFloatComplex *mats_enl, const int maxNum, const int p, 
+        cuFloatComplex *mats)
+{
+    int idx_x = threadIdx.x+blockIdx.x*blockDim.x;
+    if(idx_x < maxNum) {
+        rrCoaxTransMatGen(&mats_enl[idx_x*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)],p,&mats[idx_x*p*p*p*p]);
+    }
+}
+
+int genRRCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
+        cuFloatComplex *mat)
+{
+    cuFloatComplex *enlMat_h = (cuFloatComplex*)malloc(
+            numVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex));
+    rrCoaxTransMatsInit(wavNum,vec,numVec,p,enlMat_h);
+    
+    int numBlocksPerGrid, numThreadsPerBlock = 32;
+    numBlocksPerGrid = (numVec+numThreadsPerBlock-1)/numThreadsPerBlock;
+    
+    dim3 gridStruct(numBlocksPerGrid,1,1);
+    dim3 blockStruct(numThreadsPerBlock,1,1);
+    
+    cuFloatComplex *enlMat_d, *mat_d;
+    CUDA_CALL(cudaMalloc(&enlMat_d,numVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
+    CUDA_CALL(cudaMalloc(&mat_d,numVec*p*p*p*p*sizeof(cuFloatComplex)));
+    
+    
+    CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
+            ,cudaMemcpyHostToDevice));
+    
+    rrCoaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numVec,p,mat_d);
+    
+    CUDA_CALL(cudaMemcpy(mat,mat_d,sizeof(cuFloatComplex)*p*p*p*p*numVec,cudaMemcpyDeviceToHost));
+    
+    CUDA_CALL(cudaFree(enlMat_d));
+    CUDA_CALL(cudaFree(mat_d));
+    free(enlMat_h);
+    return EXIT_SUCCESS;
+}

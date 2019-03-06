@@ -11,11 +11,11 @@
 
 int main (int argc, char** argv)
 {
-    int p = 3;
-    cartCoord vec = {0.3,0.2,0.3};
+    int p = 2;
+    float t = 3.2;
     float wavNum = 9.7;
     cuFloatComplex *mat = (cuFloatComplex*)malloc(p*p*p*p*sizeof(cuFloatComplex));
-    genTransMat(wavNum,&vec,1,p,mat);
+    genRRCoaxTransMat(wavNum,&t,1,p,mat);
     printMat_cuFloatComplex(mat,p*p,p*p,p*p);
     free(mat);
 }
