@@ -145,5 +145,14 @@ __host__ __device__ float bCoeff(const int n, const int m);
 __host__ void rrTransMatsInit(const float wavNum, const cartCoord *vec, const int numVec, 
         const int p, cuFloatComplex *mat);
 
+int genTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
+        cuFloatComplex* transMat);
+
+void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const int numCol, 
+        const int lda);
+
+int genTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
+        cuFloatComplex* transMat);
+
 #endif /* NUMERICAL_H */
 

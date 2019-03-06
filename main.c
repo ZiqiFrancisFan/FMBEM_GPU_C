@@ -6,11 +6,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "numerical.h"
+#include "structs.h"
 
 
 int main (int argc, char** argv)
 {
-    printf("ziqi\n");
-    printf("%d,%d\n",max(3,2),min(3,2));
+    int p = 3;
+    cartCoord vec = {0.3,0.2,0.3};
+    float wavNum = 9.7;
+    cuFloatComplex *mat = (cuFloatComplex*)malloc(p*p*p*p*sizeof(cuFloatComplex));
+    genTransMat(wavNum,&vec,1,p,mat);
+    printMat_cuFloatComplex(mat,p*p,p*p,p*p);
+    free(mat);
 }
 

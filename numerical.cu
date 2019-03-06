@@ -8,6 +8,17 @@
 
 #include "numerical.h"
 
+void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const int numCol, 
+        const int lda)
+{
+    for(int i=0;i<numRow;i++) {
+        for(int j=0;j<numCol;j++) {
+            printf("(%f,%f)",cuCrealf(A[IDXC0(i,j,lda)]),cuCimagf(A[IDXC0(i,j,lda)]));
+        }
+        printf("\n");
+    }
+}
+
 int genGaussParams(const int n, float *pt, float *wgt)
 {
     int i, j;
@@ -220,7 +231,7 @@ __host__ void rrTransMatsInit(const float wavNum, const cartCoord *vec, const in
         for(matRowIdx=0;matRowIdx<matSize;matRowIdx++) {
             for(matColIdx=0;matColIdx<matSize;matColIdx++) {
                 matElemIdx = IDXC0(matRowIdx,matColIdx,matSize);
-                mat[matStartIdx+matElemIdx] = make_cuFloatComplex(0,0); 
+                mat[matStartIdx+matElemIdx] = make_cuFloatComplex(0,0);
             }
         }
     }
@@ -239,6 +250,234 @@ __host__ void rrTransMatsInit(const float wavNum, const cartCoord *vec, const in
             }
         }
     }
+}
+
+__device__ void rrTransMatGen(cuFloatComplex *matPtr, cuFloatComplex *matPtr2, 
+        const int p)
+{
+    //It is assumed that the matrix is initialized
+    int np, mp, n, m, i, j;
+    cuFloatComplex temp[6];
+    int matIdx = 0;
+    const int stride = (2*p-1)*(2*p-1);
+    float tp[3];
     
+    //The second step in the algorithm
+    for(m=0;m+1<=p-1;m++) {
+        for(np=0;np<=2*p-2-(m+1);np++) {
+            for(mp=-np;mp<=np;mp++) {
+                tp[0] = bCoeff(np,-mp)/bCoeff(m+1,-m-1);
+                tp[1] = bCoeff(np+1,mp-1)/bCoeff(m+1,-m-1);
+                if(np-1>=abs(mp-1)) {
+                    i = NM2IDX0(np-1,mp-1);
+                    j = NM2IDX0(m,m);
+                    matIdx = IDXC0(i,j,stride);
+                    temp[0] = matPtr[matIdx];
+                } else {
+                    temp[0] = make_cuFloatComplex(0,0);
+                }
+                i = NM2IDX0(np+1,mp-1);
+                j = NM2IDX0(m,m);
+                matIdx = IDXC0(i,j,stride);
+                temp[1] = matPtr[matIdx];
+                temp[0] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),
+                        tp[0]*cuCimagf(temp[0]));
+                temp[1] = make_cuFloatComplex(tp[1]*cuCrealf(temp[1]),
+                        tp[1]*cuCimagf(temp[1]));
+                temp[2] = cuCsubf(temp[0],temp[1]);
+                i = NM2IDX0(np,mp);
+                j = NM2IDX0(m+1,m+1);
+                matIdx = IDXC0(i,j,stride);
+                matPtr[matIdx] = temp[2];
+            }
+        }
+    }
+    
+    
+    //The third step in the algorithm
+    for(m=0;-m-1>=-(p-1);m++) {
+        for(np=0;np<=2*p-2-(m+1);np++) {
+            for(mp=-np;mp<=np;mp++) {
+                tp[0] = bCoeff(np,mp)/bCoeff(m+1,-m-1);
+                tp[1] = bCoeff(np+1,-mp-1)/bCoeff(m+1,-m-1);
+                if(np-1>=abs(mp+1)) {
+                    i = NM2IDX0(np-1,mp+1);
+                    j = NM2IDX0(-m,m);
+                    matIdx = IDXC0(i,j,stride);
+                    temp[0] = matPtr[matIdx];
+                    
+                } else {
+                    temp[0] = make_cuFloatComplex(0,0);
+                }
+                i = NM2IDX0(np+1,mp+1);
+                j = NM2IDX0(-m,m);
+                matIdx = IDXC0(i,j,stride);
+                temp[1] = matPtr[matIdx];
+                temp[0] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),
+                        tp[0]*cuCimagf(temp[0]));
+                temp[1] = make_cuFloatComplex(tp[1]*cuCrealf(temp[1]),
+                        tp[1]*cuCimagf(temp[1]));
+                temp[2] = cuCsubf(temp[0],temp[1]);
+                i = NM2IDX0(np,mp);
+                j = NM2IDX0(-m-1,m+1);
+                matIdx = IDXC0(i,j,stride);
+                matPtr[matIdx] = temp[2];
+            }
+        }
+    }
+    //printf("Completed 3rd step: \n");
+    //printMat_cuFltCplx(matPtr,stride,stride,stride);
+    //The fourth step in the algorithm
+    for(mp=-(p-1);mp<=p-1;mp++) {
+        for(n=0;n<=2*p-2-abs(mp);n++) {
+            for(m=-n;m<=n;m++) {
+                i = NM2IDX0(n,-m);
+                j = NM2IDX0(abs(mp),-mp);
+                matIdx = IDXC0(i,j,stride);
+                temp[0] = matPtr[matIdx];
+                tp[0] = pow(-1,n+abs(mp));
+                temp[1] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),
+                        tp[0]*cuCimagf(temp[0]));
+                i = NM2IDX0(abs(mp),mp);
+                
+                j = NM2IDX0(n,m);
+                
+                matIdx = IDXC0(i,j,stride);
+                
+                matPtr[matIdx] = temp[1];
+            }
+        }
+    }
+    
+    for(m=-(p-2);m<=p-2;m++) {
+        for(n=abs(m);n+1<=p-1;n++) {
+            for(np=1;np<=2*p-2-(n+1);np++) {
+                for(mp=-np;mp<=np;mp++) {
+                    tp[0] = aCoeff(n-1,m)/aCoeff(n,m);
+                    tp[1] = aCoeff(np-1,mp)/aCoeff(n,m);
+                    tp[2] = aCoeff(np,mp)/aCoeff(n,m);
+                    if(n-1>=abs(m)) {
+                        i = NM2IDX0(np,mp);
+                        j = NM2IDX0(n-1,m);
+                        matIdx = IDXC0(i,j,stride);
+                        temp[0] = matPtr[matIdx];
+                    } else {
+                        temp[0] = make_cuFloatComplex(0,0);
+                    }
+                    if(np-1>=abs(mp)) {
+                        i = NM2IDX0(np-1,mp);
+                        j = NM2IDX0(n,m);
+                        matIdx = IDXC0(i,j,stride);
+                        temp[1] = matPtr[matIdx];
+                    } else {
+                        temp[1] = make_cuFloatComplex(0,0);
+                    }
+                    i = NM2IDX0(np+1,mp);
+                    j = NM2IDX0(n,m);
+                    matIdx = IDXC0(i,j,stride);
+                    temp[2] = matPtr[matIdx];
+                    temp[0] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),
+                            tp[0]*cuCimagf(temp[0]));
+                    temp[1] = make_cuFloatComplex(tp[1]*cuCrealf(temp[1]),
+                            tp[1]*cuCimagf(temp[1]));
+                    temp[2] = make_cuFloatComplex(tp[2]*cuCrealf(temp[2]),
+                            tp[2]*cuCimagf(temp[2]));
+                    i = NM2IDX0(np,mp);
+                    j = NM2IDX0(n+1,m);
+                    matIdx = IDXC0(i,j,stride);
+                    matPtr[matIdx] = cuCsubf(cuCaddf(temp[0],temp[1]),temp[2]);
+                }
+            }
+        }
+    }
+    
+    for(mp=-(p-2);mp<=(p-2);mp++) {
+        for(np=abs(mp);np+1<=p-1;np++) {
+            for(n=1;n<=2*p-2-(np+1);n++) {
+                for(m=-n;m<=n;m++) {
+                    tp[0] = aCoeff(n-1,m)/aCoeff(np,mp);
+                    tp[1] = aCoeff(np-1,mp)/aCoeff(np,mp);
+                    tp[2] = aCoeff(n,m)/aCoeff(np,mp);
+                    if(n-1>=abs(m)) {
+                        i = NM2IDX0(np,mp);
+                        j = NM2IDX0(n-1,m);
+                        matIdx = IDXC0(i,j,stride);
+                        temp[0] = matPtr[matIdx];
+                    } else {
+                        temp[0] = make_cuFloatComplex(0,0);
+                    }
+                    if(np-1>=abs(mp)) {
+                        i = NM2IDX0(np-1,mp);
+                        j = NM2IDX0(n,m);
+                        matIdx = IDXC0(i,j,stride);
+                        temp[1] = matPtr[matIdx];
+                    } else {
+                        temp[1] = make_cuFloatComplex(0,0);
+                    }
+                    i = NM2IDX0(np,mp);
+                    j = NM2IDX0(n+1,m);
+                    matIdx = IDXC0(i,j,stride);
+                    temp[2] = matPtr[matIdx];
+                    temp[0] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),
+                            tp[0]*cuCimagf(temp[0]));
+                    temp[1] = make_cuFloatComplex(tp[1]*cuCrealf(temp[1]),
+                            tp[1]*cuCimagf(temp[1]));
+                    temp[2] = make_cuFloatComplex(tp[2]*cuCrealf(temp[2]),
+                            tp[2]*cuCimagf(temp[2]));
+                    i = NM2IDX0(np+1,mp);
+                    j = NM2IDX0(n,m);
+                    matIdx = IDXC0(i,j,stride);
+                    //printf("np+1=%d,mp=%d,n=%d,m=%d,i=%d,j=%d\n",np+1,mp,n,m,i,j);
+                    matPtr[matIdx] = cuCsubf(cuCaddf(temp[0],temp[1]),temp[2]);
+                }
+            }
+        }
+    }
+    for(i=0;i<p*p;i++) {
+        for(j=0;j<p*p;j++) {
+            matIdx = IDXC0(i,j,stride);
+            //printf("matIdx: %d\n",matIdx);
+            temp[0] = matPtr[matIdx];
+            matIdx = IDXC0(i,j,p*p);
+            matPtr2[matIdx] = temp[0];
+        }
+    }
+}
+
+__global__ void rrTransMatsGen(cuFloatComplex *mats_enl,const int maxNum, 
+        const int p, cuFloatComplex *mats)
+{
+    int idx_x = threadIdx.x+blockIdx.x*blockDim.x;
+    if(idx_x < maxNum) {
+        rrTransMatGen(&mats_enl[idx_x*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)],&mats[idx_x*p*p*p*p],p);
+    }
+}
+
+int genTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
+        cuFloatComplex* transMat)
+{
+    int matSize;
+    matSize = (2*p-1)*(2*p-1);
+    cuFloatComplex *enlMat = (cuFloatComplex*)malloc(numVec*matSize*matSize*sizeof(cuFloatComplex));
+    rrTransMatsInit(wavNum,vec,numVec,p,enlMat); //Initalization completed
+    cuFloatComplex *enlMat_d;
+    CUDA_CALL(cudaMalloc(&enlMat_d,numVec*matSize*matSize*sizeof(cuFloatComplex)));
+    CUDA_CALL(cudaMemcpy(enlMat_d,enlMat,numVec*matSize*matSize*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+    
+    cuFloatComplex *transMat_d;
+    CUDA_CALL(cudaMalloc(&transMat_d,numVec*p*p*p*p*sizeof(cuFloatComplex)));
+    
+    int numBlocksPerGrid, numThreadsPerBlock = 32;
+    numBlocksPerGrid = (numVec+numThreadsPerBlock-1)/numThreadsPerBlock;
+    
+    dim3 gridStruct(numBlocksPerGrid,1,1);
+    dim3 blockStruct(numThreadsPerBlock,1,1);
+    rrTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numVec,p,transMat_d);
+    
+    CUDA_CALL(cudaMemcpy(transMat,transMat_d,numVec*p*p*p*p*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+    CUDA_CALL(cudaFree(transMat_d));
+    CUDA_CALL(cudaFree(enlMat_d));
+    free(enlMat);
+    return EXIT_SUCCESS;
 }
 
