@@ -16,8 +16,13 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <cuComplex.h>
+#include <gsl/gsl_sf.h>
+#include <gsl/gsl_complex_math.h>
+#include <gsl/gsl_blas.h>
 #include "device_launch_parameters.h"
 #include "structs.h"
+
 
 #ifndef PI
 #define PI 3.1415926535897932f
@@ -39,6 +44,10 @@ _a < _b ? _a : _b; })
 
 #ifndef IDXC0
 #define IDXC0(row,col,ld) ((ld)*(col)+(row))
+#endif
+
+#ifndef NM2IDX0
+#define NM2IDX0(n,m) ((n)*(n)+(m)+(n))
 #endif
 
 #ifndef HOST_CALL
@@ -116,6 +125,25 @@ __host__ __device__ cartCoord crossProd(const cartCoord u, const cartCoord v);
 __host__ __device__ cartCoord cartCoordAdd(const cartCoord u, const cartCoord v);
 
 __host__ __device__ cartCoord cartCoordSub(const cartCoord u, const cartCoord v);
+
+__host__ __device__ sphCoord cart2sph(const cartCoord s);
+
+__host__ __device__ cartCoord sph2cart(const sphCoord s);
+
+__host__ gsl_complex gsl_sf_bessel_hl(const int l, const double s);
+
+__host__ double factorial(const int n);
+
+__host__ gsl_complex rglBasis(const double k, const int n, const int m, const sphCoord coord);
+
+__host__ gsl_complex sglBasis(const double k, const int n, const int m, const sphCoord coord);
+
+__host__ __device__ float aCoeff(const int n, const int m);
+
+__host__ __device__ float bCoeff(const int n, const int m);
+
+__host__ void rrTransMatsInit(const float wavNum, const cartCoord *vec, const int numVec, 
+        const int p, cuFloatComplex *mat);
 
 #endif /* NUMERICAL_H */
 
