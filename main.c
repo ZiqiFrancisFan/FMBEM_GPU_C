@@ -12,10 +12,10 @@
 int main (int argc, char** argv)
 {
     int p = 2;
-    float t = 3.2;
-    float wavNum = 9.7;
+    rotAng rang = {0.3*PI,0.2*PI,0.4*PI};
+    //float wavNum = 9.3;
     cuFloatComplex *mat = (cuFloatComplex*)malloc(p*p*p*p*sizeof(cuFloatComplex));
-    genRRCoaxTransMat(wavNum,&t,1,p,mat);
+    genRotMats(&rang,1,p,mat);
     printMat_cuFloatComplex(mat,p*p,p*p,p*p);
     free(mat);
 }

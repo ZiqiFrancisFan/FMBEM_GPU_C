@@ -51,6 +51,13 @@ extern "C" {
         float phi;
     };
     
+    struct rotAng
+    {
+        float alpha;
+        float beta;
+        float gamma;
+    };
+    
     typedef struct triElem triElem;
     
     typedef struct cartCoord cartCoord;
@@ -58,6 +65,8 @@ extern "C" {
     typedef struct cartCoord_double cartCoord_d;
     
     typedef struct sphCoord sphCoord;
+    
+    typedef struct rotAng rotAng;
 
 
 
