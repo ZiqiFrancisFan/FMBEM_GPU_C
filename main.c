@@ -11,12 +11,19 @@
 
 int main (int argc, char** argv)
 {
-    int p = 2;
-    rotAng rang = {0.3*PI,0.2*PI,0.4*PI};
-    //float wavNum = 9.3;
-    cuFloatComplex *mat = (cuFloatComplex*)malloc(p*p*p*p*sizeof(cuFloatComplex));
-    genRotMats(&rang,1,p,mat);
-    printMat_cuFloatComplex(mat,p*p,p*p,p*p);
-    free(mat);
+    int p = 4;
+    //rotAng rang = {0.3*PI,0.2*PI,0.4*PI};
+    cartCoord vec = {1.2,-0.3,2.2};
+    float wavNum = 50.3;
+    cuFloatComplex *coeff = (cuFloatComplex*)malloc(p*p*sizeof(cuFloatComplex));
+    HOST_CALL(genRndCoeffs(p*p,coeff));
+    //printMat_cuFloatComplex(coeff,1,p*p,1);
+    cuFloatComplex *prod = (cuFloatComplex*)malloc(p*p*sizeof(cuFloatComplex));
+    HOST_CALL(transMatsVecsMul_SR(wavNum,&vec,coeff,1,p,prod));
+    printMat_cuFloatComplex(prod,1,p*p,1);
+    HOST_CALL(transMatsVecsMul_SR_rcr(wavNum,&vec,coeff,1,p,prod));
+    printMat_cuFloatComplex(prod,1,p*p,1);
+    free(coeff);
+    free(prod);
 }
 

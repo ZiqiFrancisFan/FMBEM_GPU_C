@@ -116,6 +116,9 @@ while(0)
 
 int genGaussParams(const int n, float *pt, float *wgt);
 
+__host__ __device__ void cuMatMatMul(const cuFloatComplex *mat1, const cuFloatComplex *mat2, 
+        const int numRow1, const int numCol1, const int numCol2, cuFloatComplex *mat);
+
 __host__ __device__ float dotProd(const cartCoord u, const cartCoord v);
 
 __host__ __device__ cartCoord scalarProd(const float lambda, const cartCoord v);
@@ -145,13 +148,16 @@ __host__ __device__ float bCoeff(const int n, const int m);
 __host__ void rrTransMatsInit(const float wavNum, const cartCoord *vec, const int numVec, 
         const int p, cuFloatComplex *mat);
 
-int genTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
-        cuFloatComplex* transMat);
-
 void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const int numCol, 
         const int lda);
 
 int genRRTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
+        cuFloatComplex* transMat);
+
+int genSSTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
+        cuFloatComplex* transMat);
+
+int genSRTransMat(const float wavNum, const cartCoord* vec, const int numVec, const int p, 
         cuFloatComplex* transMat);
 
 int genRRCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
@@ -165,5 +171,39 @@ int genSRCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
 
 int genRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatComplex *rotMat);
 
+__host__ __device__ void getRotMatBlock(const cuFloatComplex *rotMat, const int p, const int n, 
+        cuFloatComplex *rotMatBlock);
+
+__host__ __device__ void getCoaxTransMatBlock(const cuFloatComplex *coaxTransMat, const int p, 
+        const int m, cuFloatComplex *coaxTransMatBlock);
+
+__host__ __device__ void cuMatVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
+        const int len, cuFloatComplex *prod);
+
+__host__ __device__ void cuRotVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
+        const int p, cuFloatComplex *prod);
+
+__host__ __device__ void cuCoaxTransMatVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
+        const int p, cuFloatComplex *prod);
+
+__host__ int genRndCoeffs(const int num, cuFloatComplex *coeff);
+
+__host__ int transMatsVecsMul_RR(const float wavNum, const cartCoord *trans, const cuFloatComplex *coeff, 
+        const int num, const int p, cuFloatComplex *prod);
+
+__host__ int transMatsVecsMul_RR_rcr(const float wavNum, const cartCoord *trans, 
+        const cuFloatComplex *coeff, const int num, const int p, cuFloatComplex *prod);
+
+__host__ int transMatsVecsMul_SS(const float wavNum, const cartCoord *trans, const cuFloatComplex *coeff, 
+        const int num, const int p, cuFloatComplex *prod);
+
+__host__ int transMatsVecsMul_SS_rcr(const float wavNum, const cartCoord *trans, 
+        const cuFloatComplex *coeff, const int num, const int p, cuFloatComplex *prod);
+
+__host__ int transMatsVecsMul_SR(const float wavNum, const cartCoord *trans, const cuFloatComplex *coeff, 
+        const int num, const int p, cuFloatComplex *prod);
+
+__host__ int transMatsVecsMul_SR_rcr(const float wavNum, const cartCoord *trans, 
+        const cuFloatComplex *coeff, const int num, const int p, cuFloatComplex *prod);
 #endif /* NUMERICAL_H */
 
