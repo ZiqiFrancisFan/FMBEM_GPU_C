@@ -2,8 +2,8 @@
 <configurationDescriptor version="100">
   <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
     <df root="." name="0">
+      <in>fmm.cu</in>
       <in>main.c</in>
-      <in>numerical.cu</in>
       <in>octree.c</in>
     </df>
     <logicalFolder name="ExternalFiles"
@@ -65,11 +65,11 @@
           <preBuildCommand></preBuildCommand>
         </preBuild>
       </makefileType>
-      <item path="main.c" ex="false" tool="0" flavor2="2">
-      </item>
-      <item path="numerical.cu" ex="false" tool="1" flavor2="8">
+      <item path="fmm.cu" ex="false" tool="1" flavor2="8">
         <ccTool flags="0">
         </ccTool>
+      </item>
+      <item path="main.c" ex="false" tool="0" flavor2="2">
       </item>
       <item path="octree.c" ex="false" tool="0" flavor2="2">
       </item>

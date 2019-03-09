@@ -5,7 +5,7 @@
  */
 #include <time.h>
 #include <curand.h>
-#include "numerical.h"
+#include "fmm.h"
 
 
 void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const int numCol, 

@@ -5,7 +5,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include "numerical.h"
+#include "fmm.h"
 #include "structs.h"
 
 

@@ -189,20 +189,20 @@ else
 endif
 
 
-OBJ = main.o numerical.o octree.o
+OBJ = main.o fmm.o octree.o
 #     Bias.o  
 
 main : $(OBJ)
 	# nvcc -ccbin /usr/bin/gcc -arch=sm_61 -l=curand -l=cublas -lcusolver -L/usr/local/lib -lgsl -lgslcblas $(OBJ) -o main
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
 
-main.o : main.c numerical.h octree.h
+main.o : main.c fmm.h octree.h
 	$(EXEC) $(HOST_COMPILER) $(INCLUDES) $(CCFLAGS) $(EXTRA_CCFLAGS) -c main.c
 
-numerical.o : numerical.cu numerical.h octree.h
-	$(NVCCONLY) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) numerical.cu
+fmm.o : fmm.cu fmm.h octree.h
+	$(NVCCONLY) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) fmm.cu
 	
-octree.o: octree.c octree.h numerical.h
+octree.o: octree.c octree.h fmm.h
 	$(NVCC) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) octree.c
 
 
