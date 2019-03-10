@@ -8,7 +8,7 @@
 #include <math.h>
 #include <cuComplex.h>
 #include "octree.h"
-#include "fmm.h"
+#include "translation.h"
 
 /*We follow the rule that the small index of an array corresponds to the more 
  significant bit*/

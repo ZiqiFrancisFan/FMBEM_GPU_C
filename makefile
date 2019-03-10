@@ -189,20 +189,26 @@ else
 endif
 
 
-OBJ = main.o fmm.o octree.o
+OBJ = main.o structs.o translation.o integral.o octree.o
 #     Bias.o  
 
 main : $(OBJ)
 	# nvcc -ccbin /usr/bin/gcc -arch=sm_61 -l=curand -l=cublas -lcusolver -L/usr/local/lib -lgsl -lgslcblas $(OBJ) -o main
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
 
-main.o : main.c fmm.h octree.h
+main.o : main.c translation.h octree.h structs.h
 	$(EXEC) $(HOST_COMPILER) $(INCLUDES) $(CCFLAGS) $(EXTRA_CCFLAGS) -c main.c
 
-fmm.o : fmm.cu fmm.h octree.h
-	$(NVCCONLY) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) fmm.cu
+translation.o : translation.cu translation.h structs.h
+	$(NVCCONLY) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) translation.cu
 	
-octree.o: octree.c octree.h fmm.h
+integral.o : integral.cu integral.h structs.h
+	$(NVCCONLY) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) integral.cu
+	
+structs.o : structs.cu structs.h
+	$(NVCCONLY) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) structs.cu
+	
+octree.o: octree.c octree.h structs.h
 	$(NVCC) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) octree.c
 
 

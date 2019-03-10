@@ -67,6 +67,20 @@ extern "C" {
     typedef struct sphCoord sphCoord;
     
     typedef struct rotAng rotAng;
+    
+    __host__ __device__ float dotProd(const cartCoord u, const cartCoord v);
+
+    __host__ __device__ cartCoord scalarProd(const float lambda, const cartCoord v);
+
+    __host__ __device__ cartCoord crossProd(const cartCoord u, const cartCoord v);
+
+    __host__ __device__ cartCoord cartCoordAdd(const cartCoord u, const cartCoord v);
+
+    __host__ __device__ cartCoord cartCoordSub(const cartCoord u, const cartCoord v);
+
+    __host__ __device__ sphCoord cart2sph(const cartCoord s);
+
+    __host__ __device__ cartCoord sph2cart(const sphCoord s);
 
 
 
