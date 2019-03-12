@@ -114,6 +114,8 @@ return EXIT_FAILURE; } \
 while(0)
 #endif
 
+__host__ cuFloatComplex gsl_complex2cuFloatComplex(const gsl_complex rhs);
+
 __host__ __device__ cuFloatComplex cplxExp(const float theta);
 
 __host__ __device__ void cuMatMatMul(const cuFloatComplex *mat1, const cuFloatComplex *mat2, 

@@ -65,7 +65,7 @@ __host__ __device__ cuFloatComplex cplxExp(const float theta)
     return make_cuFloatComplex(cos(theta),sin(theta));
 }
 
-__host__ cuFloatComplex gsl_complex2cuFloatComplex(const gsl_complex rhs) 
+__host__ cuFloatComplex gsl_complex2cuFloatComplex(const gsl_complex rhs)
 {
     return make_cuFloatComplex(GSL_REAL(rhs),GSL_IMAG(rhs));
 }
@@ -281,7 +281,6 @@ __device__ void transMatGen(cuFloatComplex *matPtr, cuFloatComplex *matPtr2,
             }
         }
     }
-    
     
     //The third step in the algorithm
     for(m=0;-m-1>=-(p-1);m++) {

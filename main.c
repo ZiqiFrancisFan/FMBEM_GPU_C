@@ -7,23 +7,28 @@
 #include <stdlib.h>
 #include "translation.h"
 #include "structs.h"
+#include "integral.h"
 
 
 int main (int argc, char** argv)
 {
-    int p = 4;
-    //rotAng rang = {0.3*PI,0.2*PI,0.4*PI};
-    cartCoord vec = {1.2,-0.3,2.2};
-    float wavNum = 50.3;
-    cuFloatComplex *coeff = (cuFloatComplex*)malloc(p*p*sizeof(cuFloatComplex));
-    HOST_CALL(genRndCoeffs(p*p,coeff));
-    //printMat_cuFloatComplex(coeff,1,p*p,1);
-    cuFloatComplex *prod = (cuFloatComplex*)malloc(p*p*sizeof(cuFloatComplex));
-    HOST_CALL(transMatsVecsMul_SR(wavNum,&vec,coeff,1,p,prod));
-    printMat_cuFloatComplex(prod,1,p*p,1);
-    HOST_CALL(transMatsVecsMul_SR_rcr(wavNum,&vec,coeff,1,p,prod));
-    printMat_cuFloatComplex(prod,1,p*p,1);
-    free(coeff);
-    free(prod);
+    float *pt = (float*)malloc(INTORDER*sizeof(float));
+    float *wgt = (float*)malloc(INTORDER*sizeof(float));
+    HOST_CALL(genGaussParams(INTORDER,pt,wgt));
+    cartCoord nod[3], y;
+    nod[0] = {2.3,3.2,0.9};
+    nod[1] = {-0.3,-0.9,-0.4};
+    nod[2] = {0,0.1,-0.1};
+    y = {4,1,2};
+    float wavNum = 9.3;
+    cartCoord nrml = {1,2,3};
+    nrml = normalize(nrml);
+    cuFloatComplex z = triElemIntegral_p2Gpn1pn2_nsgl(wavNum,nod,nrml,y,pt,wgt);
+    printMat_cuFloatComplex(&z,1,1,1);
+    z = triElemIntegral_pRpn(wavNum,nod,0,0,y,pt,wgt);
+    printMat_cuFloatComplex(&z,1,1,1);
+    free(pt);
+    free(wgt);
+    return EXIT_SUCCESS;
 }
 

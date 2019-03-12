@@ -70,13 +70,19 @@ extern "C" {
     
     __host__ __device__ float dotProd(const cartCoord u, const cartCoord v);
 
-    __host__ __device__ cartCoord scalarProd(const float lambda, const cartCoord v);
+    __host__ __device__ cartCoord scalarMul(const float lambda, const cartCoord v);
 
     __host__ __device__ cartCoord crossProd(const cartCoord u, const cartCoord v);
 
     __host__ __device__ cartCoord cartCoordAdd(const cartCoord u, const cartCoord v);
 
     __host__ __device__ cartCoord cartCoordSub(const cartCoord u, const cartCoord v);
+    
+    __host__ __device__ float cartNorm(const cartCoord x);
+
+    __host__ __device__ float cartDist(const cartCoord x, const cartCoord y);
+    
+    __host__ __device__ cartCoord normalize(const cartCoord x);
 
     __host__ __device__ sphCoord cart2sph(const cartCoord s);
 
