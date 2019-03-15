@@ -652,6 +652,101 @@ __host__ __device__ cuFloatComplex triElemIntegral_p2Gpn1pn2_nsgl(const float wa
     return result;
 }
 
+__host__ __device__ cartCoord triCentroid(const cartCoord nod[3])
+{
+    cartCoord ctr_23 = scalarMul(0.5,cartCoordAdd(nod[1],nod[2]));
+    cartCoord centroid = cartCoordAdd(nod[0],scalarMul(2.0/3.0,cartCoordSub(ctr_23,nod[0])));
+    return centroid;
+}
+
+__host__ float theta2rho(const cartCoord nod[3], const float theta) 
+{
+    cartCoord vc = triCentroid(nod);
+    float t, rho;
+    //c1 is the polar axis
+    float d_c1 = cartDist(vc,nod[0]); //distance between center and node 1
+    float d_c2 = cartDist(vc,nod[1]); //distance between center and node 2
+    float d_c3 = cartDist(vc,nod[2]); //distance between center and node 3
+    float d_12 = cartDist(nod[0],nod[1]); //distance between node 1 and node 2
+    float d_23 = cartDist(nod[1],nod[2]); //distance between node 2 and node 3
+    float d_31 = cartDist(nod[2],nod[0]); //distance between node 3 and node 1
+    //float theta_1 = 0;
+    t = (powf(d_c1,2)+powf(d_c2,2)-powf(d_12,2))/(2*d_c1*d_c2);
+    float theta_2 = acosf(t); //angle 1c2
+    t = (powf(d_c2,2)+powf(d_c3,2)-powf(d_23,2))/(2*d_c2*d_c3);
+    float theta_3 = theta_2+acosf(t); //angle 1c3 in the order of 1c2 and 2c3
+    //coordinate of node 1 in the local coordinate system
+    float x_1 = d_c1;
+    float y_1 = 0;
+    //coordinate of node 2 in the local coordinate system
+    float x_2 = d_c2*cosf(theta_2);
+    float y_2 = d_c2*sinf(theta_2);
+    //coordinate of node 3 in the local coordinate system
+    float x_3 = d_c3*cosf(theta_3);
+    float y_3 = d_c3*sinf(theta_3);
+    float x_i, y_i; //intersection point
+    float k; //slope
+    
+    if(theta<theta_2) {
+        //the intersection point is with line 12
+        if(theta==0.5*PI) {
+            x_i = 0;
+            y_i = (y_2-y_1)/(x_2-x_1)*(-x_1)+y_1;
+        } else {
+            k = tanf(theta);
+            x_i = (y_1-(y_2-y_1)/(x_2-x_1)*x_1)/(k-(y_2-y_1)/(x_2-x_1));
+            y_i = k*x_i;
+        }
+    }
+    if(theta>=theta_2 && theta<theta_3) {
+        //intersects with line 32
+        if(theta==0.5*PI) {
+            x_i = 0;
+            y_i = (y_3-y_2)/(x_3-x_2)*(-x_2)+y_2;
+        } else {
+            k = tan(theta);
+            x_i = (y_2-(y_3-y_2)/(x_3-x_2)*x_2)/(k-(y_3-y_2)/(x_3-x_2));
+            y_i = k*x_i;
+        }
+    }
+    if(theta>=theta_3) {
+        //intersects with line 21
+        if(theta==0.5*PI) {
+            x_i = 0;
+            y_i = (y_1-y_3)/(x_1-x_3)*(-x_3)+y_3;
+        } else {
+            k = tan(theta);
+            x_i = (y_3-(y_1-y_3)/(x_1-x_3)*x_3)/(k-(y_1-y_3)/(x_1-x_3));
+            y_i = k*x_i;
+        }
+    }
+    rho = sqrtf(powf(x_i,2)+powf(y_i,2));
+    return rho;
+}
+
+__host__ cuFloatComplex triElemIntegral_p2Gpn1pn2_sgl(const float wavNum, 
+        const cartCoord nod[3], const float *pt, const float *wgt)
+{
+    float theta, rho, s, w;
+    cuFloatComplex sum, t;
+    sum = make_cuFloatComplex(0,0);
+    for(int i=0;i<INTORDER;i++) {
+        s = pt[i];
+        w = wgt[i];
+        theta = PI*s+PI;
+        rho = theta2rho(nod,theta);
+        t = make_cuFloatComplex(cosf(wavNum*rho),sinf(wavNum*rho));
+        t = make_cuFloatComplex(1.0f/rho*cuCrealf(t),1.0f/rho*cuCimagf(t));
+        t = make_cuFloatComplex(w*cuCrealf(t),w*cuCimagf(t));
+        sum = cuCaddf(sum,t);
+    }
+    sum = make_cuFloatComplex(PI*cuCrealf(sum),PI*cuCimagf(sum));
+    sum = cuCsubf(sum,make_cuFloatComplex(0,2*PI*wavNum));
+    sum = make_cuFloatComplex(-1.0f/(4*PI)*cuCrealf(sum),-1.0f/(4*PI)*cuCimagf(sum));
+    return sum;
+}
+
+
 
 
 

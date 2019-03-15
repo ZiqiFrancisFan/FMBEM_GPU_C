@@ -55,5 +55,8 @@ __host__ __device__ cuFloatComplex triElemIntegral_p2Gpn1pn2_nsgl(const float wa
         const cartCoord nod[3], const cartCoord nrml_y, const cartCoord y, 
         const float *pt, const float *wgt);
 
+__host__ cuFloatComplex triElemIntegral_p2Gpn1pn2_sgl(const float wavNum, 
+        const cartCoord nod[3], const float *pt, const float *wgt);
+
 #endif /* INTEGRAL_H */
 

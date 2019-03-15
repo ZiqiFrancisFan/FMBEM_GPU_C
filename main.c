@@ -23,7 +23,7 @@ int main (int argc, char** argv)
     float wavNum = 9.3;
     cartCoord nrml = {1,2,3};
     nrml = normalize(nrml);
-    cuFloatComplex z = triElemIntegral_p2Gpn1pn2_nsgl(wavNum,nod,nrml,y,pt,wgt);
+    cuFloatComplex z = triElemIntegral_p2Gpn1pn2_sgl(wavNum,nod,pt,wgt);
     printMat_cuFloatComplex(&z,1,1,1);
     z = triElemIntegral_pRpn(wavNum,nod,0,0,y,pt,wgt);
     printMat_cuFloatComplex(&z,1,1,1);
