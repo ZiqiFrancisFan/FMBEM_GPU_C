@@ -193,5 +193,7 @@ __host__ int transMatsVecsMul_SR(const float wavNum, const cartCoord *trans, con
 
 __host__ int transMatsVecsMul_SR_rcr(const float wavNum, const cartCoord *trans, 
         const cuFloatComplex *coeff, const int num, const int p, cuFloatComplex *prod);
+
+__host__ __device__ cartCoord triCentroid(const cartCoord nod[3]);
 #endif /* NUMERICAL_H */
 

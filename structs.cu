@@ -77,3 +77,37 @@ __host__ __device__ cartCoord normalize(const cartCoord x)
     return scalarMul(1.0f/cartNorm(x),x);
 }
 
+__host__ __device__ cartCoord_d cartCoordAdd_d(const cartCoord_d u, const cartCoord_d v)
+{
+    cartCoord_d result;
+    result.x = u.x+v.x;
+    result.y = u.y+v.y;
+    result.z = u.z+v.z;
+    return result;
+}
+
+__host__ __device__ cartCoord_d cartCoordSub_d(const cartCoord_d u, const cartCoord_d v)
+{
+    cartCoord_d result;
+    result.x = u.x-v.x;
+    result.y = u.y-v.y;
+    result.z = u.z-v.z;
+    return result;
+}
+
+__host__ __device__ cartCoord_d scalarMul_d(const double lambda, const cartCoord_d v)
+{
+    cartCoord_d result;
+    result.x = lambda*v.x;
+    result.y = lambda*v.y;
+    result.z = lambda*v.z;
+    return result;
+}
+
+__host__ __device__ cartCoord_d triCentroid_d(const cartCoord_d nod[3])
+{
+    cartCoord_d ctr_23 = scalarMul_d(0.5,cartCoordAdd_d(nod[1],nod[2]));
+    cartCoord_d centroid = cartCoordAdd_d(nod[0],scalarMul_d(2.0/3.0,cartCoordSub_d(ctr_23,nod[0])));
+    return centroid;
+}
+

@@ -73,7 +73,7 @@ __host__ __device__ cuFloatComplex green(const float k, const cartCoord x, const
     return make_cuFloatComplex(cuCrealf(numerator)/denomenator,cuCimagf(numerator)/denomenator);
 }
 
-__host__ cuFloatComplex triElemIntegral_g_nsgl(const float wavNum, const cartCoord nod[3], const cartCoord y, 
+__host__ __device__ cuFloatComplex triElemIntegral_G_nsgl(const float wavNum, const cartCoord nod[3], const cartCoord y, 
         const float *pt, const float *wgt)
 {
     float J = cartNorm(crossProd(cartCoordSub(nod[0],nod[2]),cartCoordSub(nod[1],nod[2])));
@@ -104,7 +104,7 @@ __host__ cuFloatComplex triElemIntegral_g_nsgl(const float wavNum, const cartCoo
     return result;
 }
 
-__device__ cuFloatComplex triElemIntegral_g_nsgl(const float wavNum, const cartCoord nod[3], const cartCoord y)
+__device__ cuFloatComplex triElemIntegral_G_nsgl(const float wavNum, const cartCoord nod[3], const cartCoord y)
 {
     float J = cartNorm(crossProd(cartCoordSub(nod[0],nod[2]),cartCoordSub(nod[1],nod[2])));
     float rho, theta, eta1, eta2, xi1, xi2, xi3, wn, wm, temp;
@@ -134,7 +134,7 @@ __device__ cuFloatComplex triElemIntegral_g_nsgl(const float wavNum, const cartC
     return result;
 }
 
-__host__ cuFloatComplex triElemIntegral_g_sgl_3(const float wavNum, const cartCoord nod[3], 
+__host__ __device__ cuFloatComplex triElemIntegral_G_sgl_3(const float wavNum, const cartCoord nod[3], 
         const float *pt, const float *wgt)
 {
     float J = cartNorm(crossProd(cartCoordSub(nod[0],nod[2]),cartCoordSub(nod[1],nod[2])));
@@ -165,7 +165,7 @@ __host__ cuFloatComplex triElemIntegral_g_sgl_3(const float wavNum, const cartCo
     return result;
 }
 
-__device__ cuFloatComplex triElemIntegral_g_sgl_3(const float wavNum, const cartCoord nod[3])
+__device__ cuFloatComplex triElemIntegral_G_sgl_3(const float wavNum, const cartCoord nod[3])
 {
     float J = cartNorm(crossProd(cartCoordSub(nod[0],nod[2]),cartCoordSub(nod[1],nod[2])));
     float rho, theta, eta1, eta2, xi1, xi2, xi3, wn, wm, temp;
@@ -195,7 +195,7 @@ __device__ cuFloatComplex triElemIntegral_g_sgl_3(const float wavNum, const cart
     return result;
 }
 
-__host__ cuFloatComplex triElemIntegral_g_sgl(const float wavNum, const cartCoord nod[3], 
+__host__ __device__ cuFloatComplex triElemIntegral_G_sgl(const float wavNum, const cartCoord nod[3], 
         const float *pt, const float *wgt)
 {
     cartCoord y;
@@ -207,20 +207,20 @@ __host__ cuFloatComplex triElemIntegral_g_sgl(const float wavNum, const cartCoor
     nod_sub[0] = nod[0];
     nod_sub[1] = nod[1];
     nod_sub[2] = y;
-    result1 = triElemIntegral_g_sgl_3(wavNum,nod_sub,pt,wgt);
+    result1 = triElemIntegral_G_sgl_3(wavNum,nod_sub,pt,wgt);
     nod_sub[0] = nod[1];
     nod_sub[1] = nod[2];
     nod_sub[2] = y;
-    result2 = triElemIntegral_g_sgl_3(wavNum,nod_sub,pt,wgt);
+    result2 = triElemIntegral_G_sgl_3(wavNum,nod_sub,pt,wgt);
     nod_sub[0] = nod[2];
     nod_sub[1] = nod[0];
     nod_sub[2] = y;
-    result3 = triElemIntegral_g_sgl_3(wavNum,nod_sub,pt,wgt);
+    result3 = triElemIntegral_G_sgl_3(wavNum,nod_sub,pt,wgt);
     result = cuCaddf(cuCaddf(result1,result2),result3);
     return result;
 }
 
-__device__ cuFloatComplex triElemIntegral_g_sgl(const float wavNum, const cartCoord nod[3])
+__device__ cuFloatComplex triElemIntegral_G_sgl(const float wavNum, const cartCoord nod[3])
 {
     cartCoord y;
     cartCoord ctr23 = scalarMul(0.5,cartCoordAdd(nod[1],nod[2]));
@@ -231,15 +231,15 @@ __device__ cuFloatComplex triElemIntegral_g_sgl(const float wavNum, const cartCo
     nod_sub[0] = nod[0];
     nod_sub[1] = nod[1];
     nod_sub[2] = y;
-    result1 = triElemIntegral_g_sgl_3(wavNum,nod_sub);
+    result1 = triElemIntegral_G_sgl_3(wavNum,nod_sub);
     nod_sub[0] = nod[1];
     nod_sub[1] = nod[2];
     nod_sub[2] = y;
-    result2 = triElemIntegral_g_sgl_3(wavNum,nod_sub);
+    result2 = triElemIntegral_G_sgl_3(wavNum,nod_sub);
     nod_sub[0] = nod[2];
     nod_sub[1] = nod[0];
     nod_sub[2] = y;
-    result3 = triElemIntegral_g_sgl_3(wavNum,nod_sub);
+    result3 = triElemIntegral_G_sgl_3(wavNum,nod_sub);
     result = cuCaddf(cuCaddf(result1,result2),result3);
     return result;
 }
@@ -384,7 +384,7 @@ __host__ __device__ float prRecippn2(const cartCoord n, const cartCoord x, const
     return -1.0f/(dist*dist)*prpn2(n,x,y);
 }
 
-__host__ __device__ cuFloatComplex pGpn1(const float wavNum, const cartCoord x, const cartCoord y, 
+__host__ __device__ cuFloatComplex pGp1n(const float wavNum, const cartCoord x, const cartCoord y, 
         const cartCoord n)
 {
     cuFloatComplex temp_c[2];
@@ -397,7 +397,7 @@ __host__ __device__ cuFloatComplex pGpn1(const float wavNum, const cartCoord x, 
     return temp_c[0];
 }
 
-__host__ __device__ cuFloatComplex pGpn2(const float wavNum, const cartCoord n, 
+__host__ __device__ cuFloatComplex pGp2n(const float wavNum, const cartCoord n, 
         const cartCoord x, const cartCoord y)
 {
     cuFloatComplex temp_c[2];
@@ -410,7 +410,7 @@ __host__ __device__ cuFloatComplex pGpn2(const float wavNum, const cartCoord n,
     return temp_c[0];
 }
 
-__host__ __device__ cuFloatComplex triElemIntegral_pGpn1_nsgl(const float wavNum, 
+__host__ __device__ cuFloatComplex triElemIntegral_pGp1n_nsgl(const float wavNum, 
         const cartCoord nod[3], const cartCoord y, const float *pt, const float *wgt)
 {
     cartCoord nrml = crossProd(cartCoordSub(nod[0],nod[2]),cartCoordSub(nod[1],nod[2]));
@@ -436,7 +436,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_pGpn1_nsgl(const float wavNum
                     nod[0].y*xi1+nod[1].y*xi2+nod[2].y*xi3,
                     nod[0].z*xi1+nod[1].z*xi2+nod[2].z*xi3
                 };
-            pgpn1 = pGpn1(wavNum,x,y,nrml_nrmlzd);
+            pgpn1 = pGp1n(wavNum,x,y,nrml_nrmlzd);
             result = cuCaddf(result,make_cuFloatComplex(temp*cuCrealf(pgpn1),
                     temp*cuCimagf(pgpn1)));
         }
@@ -444,7 +444,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_pGpn1_nsgl(const float wavNum
     return result;
 }
 
-__host__ __device__ cuFloatComplex triElemIntegral_pGpn1_sgl_3(const float wavNum, const cartCoord nod[3], 
+__host__ __device__ cuFloatComplex triElemIntegral_pGp1n_sgl_3(const float wavNum, const cartCoord nod[3], 
         const float *pt, const float *wgt)
 {
     cartCoord nrml = crossProd(cartCoordSub(nod[0],nod[2]),cartCoordSub(nod[1],nod[2]));
@@ -470,7 +470,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_pGpn1_sgl_3(const float wavNu
                     nod[0].y*xi1+nod[1].y*xi2+nod[2].y*xi3,
                     nod[0].z*xi1+nod[1].z*xi2+nod[2].z*xi3
                 };
-            pgpn1 = pGpn1(wavNum,x,nod[2],nrml_nrmlzd);
+            pgpn1 = pGp1n(wavNum,x,nod[2],nrml_nrmlzd);
             result = cuCaddf(result,make_cuFloatComplex(temp*cuCrealf(pgpn1),
                     temp*cuCimagf(pgpn1)));
         }
@@ -478,7 +478,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_pGpn1_sgl_3(const float wavNu
     return result;
 }
 
-__host__ cuFloatComplex triElemIntegral_pgpn1_sgl(const float wavNum, const cartCoord nod[3], 
+__host__ cuFloatComplex triElemIntegral_pGp1n_sgl(const float wavNum, const cartCoord nod[3], 
         const float *pt, const float *wgt)
 {
     cartCoord y;
@@ -490,20 +490,20 @@ __host__ cuFloatComplex triElemIntegral_pgpn1_sgl(const float wavNum, const cart
     nod_sub[0] = nod[0];
     nod_sub[1] = nod[1];
     nod_sub[2] = y;
-    result1 = triElemIntegral_pGpn1_sgl_3(wavNum,nod_sub,pt,wgt);
+    result1 = triElemIntegral_pGp1n_sgl_3(wavNum,nod_sub,pt,wgt);
     nod_sub[0] = nod[1];
     nod_sub[1] = nod[2];
     nod_sub[2] = y;
-    result2 = triElemIntegral_pGpn1_sgl_3(wavNum,nod_sub,pt,wgt);
+    result2 = triElemIntegral_pGp1n_sgl_3(wavNum,nod_sub,pt,wgt);
     nod_sub[0] = nod[2];
     nod_sub[1] = nod[0];
     nod_sub[2] = y;
-    result3 = triElemIntegral_pGpn1_sgl_3(wavNum,nod_sub,pt,wgt);
+    result3 = triElemIntegral_pGp1n_sgl_3(wavNum,nod_sub,pt,wgt);
     result = cuCaddf(cuCaddf(result1,result2),result3);
     return result;
 }
 
-__host__ __device__ cuFloatComplex triElemIntegral_pGpn2_nsgl(const float wavNum, 
+__host__ __device__ cuFloatComplex triElemIntegral_pGp2n_nsgl(const float wavNum, 
         const cartCoord nod[3], const cartCoord nrml, const cartCoord y, 
         const float *pt, const float *wgt)
 {
@@ -528,7 +528,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_pGpn2_nsgl(const float wavNum
                     nod[0].y*xi1+nod[1].y*xi2+nod[2].y*xi3,
                     nod[0].z*xi1+nod[1].z*xi2+nod[2].z*xi3
                 };
-            pgpn2 = pGpn2(wavNum,nrml,x,y);
+            pgpn2 = pGp2n(wavNum,nrml,x,y);
             result = cuCaddf(result,make_cuFloatComplex(temp*cuCrealf(pgpn2),
                     temp*cuCimagf(pgpn2)));
         }
@@ -536,7 +536,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_pGpn2_nsgl(const float wavNum
     return result;
 }
 
-__host__ __device__ cuFloatComplex triElemIntegral_pGpn2_sgl_3(const float wavNum, 
+__host__ __device__ cuFloatComplex triElemIntegral_pGp2n_sgl_3(const float wavNum, 
         const cartCoord nod[3], const float *pt, const float *wgt)
 {
     cartCoord nrml = crossProd(cartCoordSub(nod[0],nod[2]),cartCoordSub(nod[1],nod[2]));
@@ -562,7 +562,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_pGpn2_sgl_3(const float wavNu
                     nod[0].y*xi1+nod[1].y*xi2+nod[2].y*xi3,
                     nod[0].z*xi1+nod[1].z*xi2+nod[2].z*xi3
                 };
-            pgpn2 = pGpn2(wavNum,nrml_nrmlzd,x,nod[2]);
+            pgpn2 = pGp2n(wavNum,nrml_nrmlzd,x,nod[2]);
             result = cuCaddf(result,make_cuFloatComplex(temp*cuCrealf(pgpn2),
                     temp*cuCimagf(pgpn2)));
         }
@@ -570,7 +570,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_pGpn2_sgl_3(const float wavNu
     return result;
 }
 
-__host__ cuFloatComplex triElemIntegral_pgpn2_sgl(const float wavNum, 
+__host__ cuFloatComplex triElemIntegral_pGp2n_sgl(const float wavNum, 
         const cartCoord nod[3], const float *pt, const float *wgt)
 {
     cartCoord y;
@@ -582,20 +582,20 @@ __host__ cuFloatComplex triElemIntegral_pgpn2_sgl(const float wavNum,
     nod_sub[0] = nod[0];
     nod_sub[1] = nod[1];
     nod_sub[2] = y;
-    result1 = triElemIntegral_pGpn2_sgl_3(wavNum,nod_sub,pt,wgt);
+    result1 = triElemIntegral_pGp2n_sgl_3(wavNum,nod_sub,pt,wgt);
     nod_sub[0] = nod[1];
     nod_sub[1] = nod[2];
     nod_sub[2] = y;
-    result2 = triElemIntegral_pGpn2_sgl_3(wavNum,nod_sub,pt,wgt);
+    result2 = triElemIntegral_pGp2n_sgl_3(wavNum,nod_sub,pt,wgt);
     nod_sub[0] = nod[2];
     nod_sub[1] = nod[0];
     nod_sub[2] = y;
-    result3 = triElemIntegral_pGpn2_sgl_3(wavNum,nod_sub,pt,wgt);
+    result3 = triElemIntegral_pGp2n_sgl_3(wavNum,nod_sub,pt,wgt);
     result = cuCaddf(cuCaddf(result1,result2),result3);
     return result;
 }
 
-__host__ __device__ cuFloatComplex p2Gpn1pn2(const float wavNum, const cartCoord n1, const cartCoord n2, 
+__host__ __device__ cuFloatComplex p2Gp1np2n(const float wavNum, const cartCoord n1, const cartCoord n2, 
         const cartCoord x, const cartCoord y)
 {
     cuFloatComplex temp[3];
@@ -617,7 +617,7 @@ __host__ __device__ cuFloatComplex p2Gpn1pn2(const float wavNum, const cartCoord
     return cuCmulf(temp[0],cuCaddf(temp[1],temp[2]));
 }
 
-__host__ __device__ cuFloatComplex triElemIntegral_p2Gpn1pn2_nsgl(const float wavNum, 
+__host__ __device__ cuFloatComplex triElemIntegral_p2Gp1np2n_nsgl(const float wavNum, 
         const cartCoord nod[3], const cartCoord nrml_y, const cartCoord y, 
         const float *pt, const float *wgt)
 {
@@ -644,7 +644,7 @@ __host__ __device__ cuFloatComplex triElemIntegral_p2Gpn1pn2_nsgl(const float wa
                     nod[0].y*xi1+nod[1].y*xi2+nod[2].y*xi3,
                     nod[0].z*xi1+nod[1].z*xi2+nod[2].z*xi3
                 };
-            p2gpn1pn2 = p2Gpn1pn2(wavNum,nrml_x_nrmlzd,nrml_y,x,y);
+            p2gpn1pn2 = p2Gp1np2n(wavNum,nrml_x_nrmlzd,nrml_y,x,y);
             result = cuCaddf(result,make_cuFloatComplex(temp*cuCrealf(p2gpn1pn2),
                     temp*cuCimagf(p2gpn1pn2)));
         }
@@ -659,7 +659,7 @@ __host__ __device__ cartCoord triCentroid(const cartCoord nod[3])
     return centroid;
 }
 
-__host__ float theta2rho(const cartCoord nod[3], const float theta) 
+__host__ __device__ float theta2rho(const cartCoord nod[3], const float theta) 
 {
     cartCoord vc = triCentroid(nod);
     float t, rho;
@@ -724,7 +724,7 @@ __host__ float theta2rho(const cartCoord nod[3], const float theta)
     return rho;
 }
 
-__host__ cuFloatComplex triElemIntegral_p2Gpn1pn2_sgl(const float wavNum, 
+__host__ __device__ cuFloatComplex triElemIntegral_p2Gp1np2n_sgl(const float wavNum, 
         const cartCoord nod[3], const float *pt, const float *wgt)
 {
     float theta, rho, s, w;
@@ -744,6 +744,74 @@ __host__ cuFloatComplex triElemIntegral_p2Gpn1pn2_sgl(const float wavNum,
     sum = cuCsubf(sum,make_cuFloatComplex(0,2*PI*wavNum));
     sum = make_cuFloatComplex(-1.0f/(4*PI)*cuCrealf(sum),-1.0f/(4*PI)*cuCimagf(sum));
     return sum;
+}
+
+__host__ __device__ void cmptDiffCoeff(const float wavNum, const cuFloatComplex *coeff, 
+        const int p, const cartCoord nrml, cuFloatComplex *coeff_n)
+{
+    cuFloatComplex c[6], temp_c[6];
+    float temp_f;
+    for(int n=0;n<p;n++) {
+        for(int m=-n;m<=n;m++) {
+            if(abs(m-1)>n-1) {
+                c[0] = make_cuFloatComplex(0,0);
+            } else {
+                c[0] = coeff[NM2IDX0(n-1,m-1)];
+            }
+            if(abs(m-1)>n+1) {
+                c[1] = make_cuFloatComplex(0,0);
+            } else {
+                c[1] = coeff[NM2IDX0(n+1,m-1)];
+            }
+            if(abs(m+1)>n-1) {
+                c[2] = make_cuFloatComplex(0,0);
+            } else {
+                c[2] = coeff[NM2IDX0(n-1,m+1)];
+            }
+            if(abs(m+1)>n+1) {
+                c[3] = make_cuFloatComplex(0,0);
+            } else {
+                c[3] = coeff[NM2IDX0(n+1,m+1)];
+            }
+            if(abs(m)>n+1) {
+                c[4] = make_cuFloatComplex(0,0);
+            } else {
+                c[4] = coeff[NM2IDX0(n+1,m)];
+            }
+            if(abs(m)>n-1) {
+                c[5] = make_cuFloatComplex(0,0);
+            } else {
+                c[5] = coeff[NM2IDX0(n-1,m)];
+            }
+            temp_f = bCoeff(n,-m);
+            temp_c[0] = make_cuFloatComplex(temp_f*cuCrealf(c[0]),temp_f*cuCimagf(c[0]));
+            temp_f = bCoeff(n+1,m-1);
+            temp_c[1] = make_cuFloatComplex(temp_f*cuCrealf(c[1]),temp_f*cuCimagf(c[1]));
+            temp_f = bCoeff(n,m);
+            temp_c[2] = make_cuFloatComplex(temp_f*cuCrealf(c[2]),temp_f*cuCimagf(c[2]));
+            temp_f = bCoeff(n+1,-m-1);
+            temp_c[2] = make_cuFloatComplex(temp_f*cuCrealf(c[3]),temp_f*cuCimagf(c[3]));
+            temp_f = aCoeff(n,m);
+            temp_c[2] = make_cuFloatComplex(temp_f*cuCrealf(c[4]),temp_f*cuCimagf(c[4]));
+            temp_f = aCoeff(n-1,m);
+            temp_c[2] = make_cuFloatComplex(temp_f*cuCrealf(c[5]),temp_f*cuCimagf(c[5]));
+            
+            temp_c[0] = cuCsubf(temp_c[0],temp_c[1]);
+            temp_c[1] = cuCsubf(temp_c[2],temp_c[3]);
+            temp_c[2] = cuCsubf(temp_c[4],temp_c[5]);
+            
+            temp_f = wavNum/2;
+            temp_c[3] = make_cuFloatComplex(temp_f*nrml.x,-temp_f*nrml.y);
+            temp_c[4] = make_cuFloatComplex(temp_f*nrml.x,temp_f*nrml.y);
+            
+            temp_c[0] = cuCmulf(temp_c[0],temp_c[3]);
+            temp_c[1] = cuCmulf(temp_c[1],temp_c[4]);
+            temp_f = wavNum*nrml.z;
+            temp_c[2] = make_cuFloatComplex(temp_f*cuCrealf(temp_c[2]),temp_f*cuCimagf(temp_c[2]));
+            
+            coeff_n[NM2IDX0(n,m)] = cuCaddf(cuCaddf(temp_c[0],temp_c[1]),temp_c[2]);
+        }
+    }
 }
 
 

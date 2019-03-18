@@ -5,15 +5,18 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <math.h>
 #include <cuComplex.h>
 #include "octree.h"
+#include "structs.h"
 #include "translation.h"
 
 /*We follow the rule that the small index of an array corresponds to the more 
  significant bit*/
 
-void printIntArray(int *a, int sz) {
+void printIntArray(const int *a, const int sz)
+{
     int i;
     for(i=0;i<sz;i++) {
         printf("%d ",a[i]);
@@ -21,24 +24,24 @@ void printIntArray(int *a, int sz) {
     printf("\n");
 }
 
-int arrEqual(const int *a, const int *b, const int num) 
+bool arrEqual(const int *a, const int *b, const int num) 
 {
     int i;
-    int result = 1;
+    bool result = true;
     for(i=0;i<num;i++) {
         if(a[i]!=b[i]) {
-            result = 0;
+            result = false;
             break;
         }
     }
     return result;
 }
 
-void printSet(const int *set) 
+void printSet(const int *set)
 {
     int i;
     if(set[0]==0) {
-        printf("The set is empty.");
+        printf("Empty set.");
     } else {
         for(i=1;i<=set[0];i++) {
             printf("%d ",set[i]);
@@ -57,13 +60,13 @@ int child(int num, int cld)
     return 8*num+cld;
 }
 
-int children(const int num, int *cldrn) 
+void children(const int num, int *cldrn) 
 {
     int i;
     for(i=0;i<8;i++) {
         cldrn[i] = child(num,i);
     }
-} 
+}
 
 cartCoord_d scale(const cartCoord_d x, const cartCoord_d x_min, const double d) 
 {
@@ -83,11 +86,10 @@ cartCoord_d descale(const cartCoord_d x_s, const cartCoord_d x_min, const double
     return x_ds;
 }
 
-void scalePnts(const cartCoord_d *pnt, const int numPnts, const cartCoord_d pnt_min, 
+void scalePnts(const cartCoord_d *pnt, const int numPt, const cartCoord_d pnt_min, 
         const double d, cartCoord_d* pnt_scaled)
 {
-    int i;
-    for(i=0;i<numPnts;i++) {
+    for(int i=0;i<numPt;i++) {
         pnt_scaled[i] = scale(pnt[i],pnt_min,d);
     }
 }
@@ -107,13 +109,6 @@ void dec2bin_frac(double s, int l, int *h)
         h[i-1] = (int)t;
         s-=t;
     }
-    /*
-    printf("0.");
-    for(i=1;i<=l;i++) {
-        printf("%d",h[i-1]);
-    }
-    printf("\n");
-     */ 
 }
 
 void dec2bin_int(unsigned num, int *rep, int *numBits)
@@ -161,8 +156,7 @@ int indArr2num(const int *ind, const int l, const int d)
 void bitDeintleave(const int *result, const int l, int *x, int *y, int *z)
 {
     //result is an array containing 3*l elements of binary number
-    int i;
-    for(i=0;i<l;i++) 
+    for(int i=0;i<l;i++) 
     {
         x[i] = result[3*i];
         y[i] = result[3*i+1];
@@ -174,17 +168,22 @@ int pnt2boxnum(const cartCoord_d pnt, const int l)
 {
     int *ind_x, *ind_y, *ind_z, *ind;
     int result;
+    
+    //Allocate binary arrays for each dimension and the final representation
     ind_x = (int*)malloc(l*sizeof(int));
     ind_y = (int*)malloc(l*sizeof(int));
     ind_z = (int*)malloc(l*sizeof(int));
     ind = (int*)malloc(l*sizeof(int));
     
+    //Get the binary representation of the point in each dimension
     dec2bin_frac(pnt.x,l,ind_x);
     dec2bin_frac(pnt.y,l,ind_y);
     dec2bin_frac(pnt.z,l,ind_z);
+    
+    //Binary representation of the point in each dimension to the final representation
     bitIntleave(ind_x,ind_y,ind_z,l,ind);
-
     result = indArr2num(ind,l,3);
+    
     free(ind_x);
     free(ind_y);
     free(ind_z);
@@ -193,16 +192,20 @@ int pnt2boxnum(const cartCoord_d pnt, const int l)
 }
 
 cartCoord_d boxCenter(const int num, const int l) {
+    //Tell if the center of the box is legal
     if(num < 0 || num > pow(pow(2,3),l)-1) {
         printf("Illegal input.\n");
         printf("Error at %s:%d\n",__FILE__,__LINE__);
         cartCoord_d temp = {nan("1"),nan("2"),nan("3")};
         return temp;
     }
+    
     cartCoord_d pnt;
     int i;
     int *ind = (int*)malloc(3*l*sizeof(int));
-    int *rep = (int*)calloc(8*sizeof(unsigned),sizeof(int));
+    
+    //3*l bits needed for a box number at level l
+    int *rep = (int*)calloc(3*l,sizeof(int));
     int *x = (int*)malloc(l*sizeof(int));
     int *y = (int*)malloc(l*sizeof(int));
     int *z = (int*)malloc(l*sizeof(int));
@@ -415,24 +418,24 @@ void createSet(const int *elems, const int numElems, int *set)
     }
 }
 
-int isMember(const int t, const int *set)
+bool isMember(const int t, const int *set)
 {
-    int i, flag = 0;
-    for(i=1;i<=set[0];i++) {
+    bool flag = false;
+    for(int i=1;i<=set[0];i++) {
         if(t==set[i]) {
-            flag = 1;
+            flag = true;
             break;
         }
     }
     return flag;
 }
 
-int isEmpty(const int *set)
+bool isEmpty(const int *set)
 {
     if(set[0]==0) {
-        return 1;
+        return true;
     } else {
-        return 0;
+        return false;
     }
 }
 
@@ -448,7 +451,8 @@ void intersection(const int *set1, const int *set2, int *set3)
     }
 }
 
-void Union(const int *set1, const int *set2, int *set3) {
+void Union(const int *set1, const int *set2, int *set3)
+{
     int i;
     int n = set2[0];
     for(i=0;i<=set1[0];i++) {
@@ -461,7 +465,8 @@ void Union(const int *set1, const int *set2, int *set3) {
     }
 }
 
-void difference(const int *set1, const int *set2, int *set3) {
+void difference(const int *set1, const int *set2, int *set3)
+{
     //get elements in set 1 but not in set 2
     int i;
     set3[0] = 0;
@@ -472,20 +477,18 @@ void difference(const int *set1, const int *set2, int *set3) {
     }
 }
 
-void pnts2numSet(const cartCoord_d *pnts, const int numPnts, const int l, int *set) {
+void pnts2numSet(const cartCoord_d *pnts, const int numPnts, const int l, int *set)
+{
     int i;
     int num[MAX];
     for(i=0;i<numPnts;i++) {
         num[i] = pnt2boxnum(pnts[i],l);
     }
-    //printf("print array in pnts2numSet: \n");
-    //printIntArray(num,numPnts);
     createSet(num,numPnts,set);
 }
 
-
-
-void sampleSpace(const int l, int *set) {
+void sampleSpace(const int l, int *set)
+{
     //all boxes at level l
     int t = pow(8,l);
     set[0] = t;
@@ -494,12 +497,14 @@ void sampleSpace(const int l, int *set) {
     }
 }
 
-void I1(const int num, int *set) {
+void I1(const int num, int *set)
+{
     set[0] = 1;
     set[1] = num;
 }
 
-void I2(const int num, const int l, int *set) {
+void I2(const int num, const int l, int *set)
+{
     //the set of neighbors
     int nbr[27];
     int t;
@@ -508,7 +513,8 @@ void I2(const int num, const int l, int *set) {
     createSet(nbr,t+1,set);
 }
 
-void I3(const int num, const int l, int *set) {
+void I3(const int num, const int l, int *set)
+{
     int nbrSet[28];
     int *set_whole = (int*)malloc((pow(8,l)+1)*sizeof(int));
     sampleSpace(l,set_whole);
@@ -519,12 +525,17 @@ void I3(const int num, const int l, int *set) {
 
 void I4(const int num, const int l, int *set) {
     int t, t_p, i, j;
-    int num_p = parent(num); //number of the parent box
-    int nbrs[27], nbrs_p[27]; 
+    
+    //number of the parent box
+    int num_p = parent(num); 
+    
+    //Neighbors of the box and the parent box
+    int nbrs[27], nbrs_p[27];
     neighbors(num,l,&t,nbrs);
     nbrs[t] = num; //include the box itself
     neighbors(num_p,l-1,&t_p,nbrs_p); //neighbors of the parent box
     nbrs_p[t_p] = num_p; //include the box itsefl
+    
     int *chldrn = (int*)malloc(8*(t_p+1)*sizeof(int)); //allocate memory for children
     //all children of the parent neighborhood
     for(i=0;i<t_p+1;i++) {
@@ -639,6 +650,7 @@ int deterLmax(const cartCoord_d *pnts, const int numPnts, const int s)
         t = pnt2boxnum(pnts[i],l_avl);
         pntInd[i] = t;
     }
+    printf("Started array order.\n");
     /*
     for(i=0;i<numPnts;i++) {
         printf("%d ",pntInd[i]);
@@ -650,6 +662,7 @@ int deterLmax(const cartCoord_d *pnts, const int numPnts, const int s)
     i = 0;
     j = s;
     while(j<numPnts) {
+        //printf("Index of point: %d\n",j);
         l = l_avl;
         a = pntInd[ind[i]];
         b = pntInd[ind[j]];
@@ -672,12 +685,13 @@ int deterLmax(const cartCoord_d *pnts, const int numPnts, const int s)
     return l_max;
 }
 
-void findBoundingCube(const cartCoord_d* pnts, const int numPnts, cartCoord_d* pnts_b, 
-        double* d)
+void findBoundingCube(const cartCoord_d *pnts, const int numPnts, const double eps, 
+        cartCoord_d *pnts_b, double *d)
 {
     int i;
     double x_min, x_max, y_min, y_max, z_min, z_max;
     double d_x, d_y, d_z, d_max;
+    double eps_d;
     x_min = pnts[0].x;
     x_max = pnts[0].x;
     y_min = pnts[0].y;
@@ -704,71 +718,70 @@ void findBoundingCube(const cartCoord_d* pnts, const int numPnts, cartCoord_d* p
             z_max = pnts[i].z;
         }
     }
-    x_max += 0.01;
-    x_min -= 0.01;
-    y_max += 0.01;
-    y_min -= 0.01;
-    z_max += 0.01;
-    z_min -= 0.01;
+    eps_d = 0.000001*min(min(x_max-x_min,y_max-y_min),z_max-z_min);
+    eps_d = min(eps,eps_d);
+    x_max += eps_d;
+    x_min -= eps_d;
+    y_max += eps_d;
+    y_min -= eps_d;
+    z_max += eps_d;
+    z_min -= eps_d;
     d_x = x_max-x_min;
     d_y = y_max-y_min;
     d_z = z_max-z_min;
     d_max = max(max(d_x,d_y),d_z);
+    
+    //Enlarge the sides of the box to d_max
     x_max += (d_max-d_x)/2;
     x_min -= (d_max-d_x)/2;
     y_max += (d_max-d_y)/2;
     y_min -= (d_max-d_y)/2;
     z_max += (d_max-d_z)/2;
     z_min -= (d_max-d_z)/2;
-    pnts_b[0].x = x_min;
-    pnts_b[0].y = y_min;
-    pnts_b[0].z = z_min;
-    pnts_b[1].x = x_min;
-    pnts_b[1].y = y_min;
-    pnts_b[1].z = z_max;
-    pnts_b[2].x = x_min;
-    pnts_b[2].y = y_max;
-    pnts_b[2].z = z_min;
-    pnts_b[3].x = x_min;
-    pnts_b[3].y = y_max;
-    pnts_b[3].z = z_max;
-    pnts_b[4].x = x_max;
-    pnts_b[4].y = y_min;
-    pnts_b[4].z = z_min;
-    pnts_b[5].x = x_max;
-    pnts_b[5].y = y_min;
-    pnts_b[5].z = z_max;
-    pnts_b[6].x = x_max;
-    pnts_b[6].y = y_max;
-    pnts_b[6].z = z_min;
-    pnts_b[7].x = x_max;
-    pnts_b[7].y = y_max;
-    pnts_b[7].z = z_max;
+    
+    //The bounding box
+    pnts_b[0] = (cartCoord_d){.x=x_min,.y=y_min,.z=z_min};
+    pnts_b[1] = (cartCoord_d){.x=x_min,.y=y_min,.z=z_max};
+    pnts_b[2] = (cartCoord_d){.x=x_min,.y=y_max,.z=z_min};
+    pnts_b[3] = (cartCoord_d){.x=x_min,.y=y_max,.z=z_max};
+    pnts_b[4] = (cartCoord_d){.x=x_max,.y=y_min,.z=z_min};
+    pnts_b[5] = (cartCoord_d){.x=x_max,.y=y_min,.z=z_max};
+    pnts_b[6] = (cartCoord_d){.x=x_max,.y=y_max,.z=z_min};
+    pnts_b[7] = (cartCoord_d){.x=x_max,.y=y_max,.z=z_max};
+    
+    //The side length of the box
     *d = d_max;
 }
 
-/*
 void srcBoxes(const cartCoord_d *pnts, const triElem *elems, const int numElems, 
-        const int s, int *srcBoxSet, int *lmax, double *D, cartCoord_d *pnt_min) {
-    int i;
-    vector v1, v2, v3, v;
+        const int s, int *srcBoxSet, int *lmax, double *D, cartCoord_d *pnt_min)
+{
     cartCoord_d *pnts_ctr = (cartCoord_d*)malloc(numElems*sizeof(cartCoord_d));
     cartCoord_d *pnts_bnd = (cartCoord_d*)malloc(8*sizeof(cartCoord_d));
     cartCoord_d *pnts_scaled = (cartCoord_d*)malloc(numElems*sizeof(cartCoord_d));
-    for(i=0;i<numElems;i++) {
-        v1 = pnt2vec(pnts[elems[i].nodes[0]]);
-        v2 = pnt2vec(pnts[elems[i].nodes[1]]);
-        v3 = pnt2vec(pnts[elems[i].nodes[2]]);
-        v = triCentroid(v1,v2,v3);
-        pnts_ctr[i] = vec2pnt(v);
+    cartCoord_d nod[3];
+    
+    for(int i=0;i<numElems;i++) {
+        nod[0] = pnts[elems[i].node[0]];
+        nod[1] = pnts[elems[i].node[1]];
+        nod[2] = pnts[elems[i].node[2]];
+        pnts_ctr[i] = triCentroid_d(nod);
     }
-    findBoundingCube(pnts_ctr,numElems,pnts_bnd,D);
+    findBoundingCube(pnts_ctr,numElems,0,pnts_bnd,D);
     *pnt_min = pnts_bnd[0];
-    scalePnts(pnts_ctr,numElems,&pnts_bnd[0],*D,pnts_scaled);
+    scalePnts(pnts_ctr,numElems,pnts_bnd[0],*D,pnts_scaled);
     *lmax = deterLmax(pnts_scaled,numElems,s);
     pnts2numSet(pnts_scaled,numElems,*lmax,srcBoxSet);
 }
 
+void genOctPt(const int level, cartCoord_d *pt)
+{
+    for(int i=0;i<pow(pow(2,3),level);i++) {
+        pt[i] = boxCenter(i,level);
+    }
+}
+
+/*
 int truncNum(const double k, const double eps, const double sigma, 
         const double a) {
     double p_lo, p_hi, p, temp_d[2];
@@ -806,9 +819,11 @@ int truncNum_2(const double wavNum, const double eps, const double sigma,
 double descale_1d(const double a, const double D, const double v_min) {
     return D*a+v_min;
 }
+*/
 
-void prtlvlSet(const int *X, const int l, int *X_n) {
-    if(l == 0) {
+void prntLevelSet(const int *X, const int l, int *X_n)
+{
+    if(l==0) {
         return;
     }
     int i, num = 0, X_t[MAX];
@@ -823,7 +838,8 @@ void prtlvlSet(const int *X, const int l, int *X_n) {
     createSet(X_t,num,X_n);
 }
 
-int findSetInd(const int *X, const int num) {
+int findSetInd(const int *X, const int num)
+{
     if(X[0]==0) {
         printf("Empty set.\n");
         return -1;
@@ -841,41 +857,59 @@ int findSetInd(const int *X, const int num) {
     return t;
 }
 
-void cpySet(const int *X, int *Y) {
-    int i;
-    for(i=0;i<=X[0];i++) {
+void copySet(const int *X, int *Y) {
+    for(int i=0;i<=X[0];i++) {
         Y[i] = X[i];
     }
 }
 
-void FMMLvlSet_s(const int *X, const int lmax, int ***pSet) {
+void FMMLvlSet_s(const int *X, const int lmax, int ***pSet)
+{
     int l;
     const int lmin = 2;
-    *pSet = (int**)malloc((lmax-2+1)*sizeof(int*));
+    *pSet = (int**)malloc((lmax-lmin+1)*sizeof(int*));
     int set_temp[MAX];
     (*pSet)[0] = (int*)malloc((X[0]+1)*sizeof(int));
-    cpySet(X,(*pSet)[0]);
+    copySet(X,(*pSet)[0]);
     for(l=lmax-1;l>=lmin;l--) {
-        prtlvlSet((*pSet)[lmax-l-1],l+1,set_temp);
+        prntLevelSet((*pSet)[lmax-l-1],l+1,set_temp);
         (*pSet)[lmax-l] = (int*)malloc((set_temp[0]+1)*sizeof(int));
-        cpySet(set_temp,(*pSet)[lmax-l]);
+        copySet(set_temp,(*pSet)[lmax-l]);
     }
 }
 
-void FMMLvlSet_e(const int *Y, const int lmax, int ***pSet) {
+void FMMLvlSet_e(const int *Y, const int lmax, int ***pSet)
+{
     int l;
     const int lmin = 2;
     int set_temp[MAX];
-    *pSet = (int**)malloc((lmax-2+1)*sizeof(int*));
+    *pSet = (int**)malloc((lmax-lmin+1)*sizeof(int*));
     //printf("allocated memory.\n");
     (*pSet)[lmax-2] = (int*)malloc((Y[0]+1)*sizeof(int));
-    cpySet(Y,(*pSet)[lmax-2]);
+    copySet(Y,(*pSet)[lmax-2]);
     for(l=lmax-1;l>=lmin;l--) {
-        prtlvlSet((*pSet)[l+1-lmin],l+1,set_temp);
+        prntLevelSet((*pSet)[l+1-lmin],l+1,set_temp);
         (*pSet)[l-lmin] = (int*)malloc((set_temp[0]+1)*sizeof(int));
-        cpySet(set_temp,(*pSet)[l-lmin]);
+        copySet(set_temp,(*pSet)[l-lmin]);
     }
     //printf("completed FMMLvlSet_e\n");
+}
+
+//level Set is of size (lmax-lmin+1)
+void FMMLevelSet(const int *btmSet, const int lmax, int **levelSet)
+{
+    //minimum level
+    const int lmin = 2;
+    int tempSet[MAX];
+    //Allocate memory for the lmax level
+    levelSet[lmax-lmin] = (int*)malloc((btmSet[0]+1)*sizeof(int));
+    copySet(btmSet,levelSet[lmax-lmin]);
+    for(int l=lmax-1;l>=lmin;l--) {
+        //Boxes of the parent level of level l+1
+        prntLevelSet(levelSet[l+1-lmin],l+1,tempSet); 
+        levelSet[l-lmin] = (int*)malloc((tempSet[0]+1)*sizeof(int));
+        copySet(tempSet,levelSet[l-lmin]);
+    }
 }
 
 void sortSet(int *set) {
@@ -890,6 +924,5 @@ void sortSet(int *set) {
         }
     }
 }
-*/
 
 

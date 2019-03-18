@@ -5,30 +5,34 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "translation.h"
 #include "structs.h"
 #include "integral.h"
+#include "octree.h"
 
 
 int main (int argc, char** argv)
 {
-    float *pt = (float*)malloc(INTORDER*sizeof(float));
-    float *wgt = (float*)malloc(INTORDER*sizeof(float));
-    HOST_CALL(genGaussParams(INTORDER,pt,wgt));
-    cartCoord nod[3], y;
-    nod[0] = {2.3,3.2,0.9};
-    nod[1] = {-0.3,-0.9,-0.4};
-    nod[2] = {0,0.1,-0.1};
-    y = {4,1,2};
-    float wavNum = 9.3;
-    cartCoord nrml = {1,2,3};
-    nrml = normalize(nrml);
-    cuFloatComplex z = triElemIntegral_p2Gpn1pn2_sgl(wavNum,nod,pt,wgt);
-    printMat_cuFloatComplex(&z,1,1,1);
-    z = triElemIntegral_pRpn(wavNum,nod,0,0,y,pt,wgt);
-    printMat_cuFloatComplex(&z,1,1,1);
+    cartCoord_d *pt;
+    triElem *elem;
+    int numPt, numElem;
+    findNum("cube_12.obj",&numPt,&numElem);
+    pt = (cartCoord_d*)malloc(numPt*sizeof(cartCoord_d));
+    elem = (triElem*)malloc(numElem*sizeof(triElem));
+    readOBJ("cube_12.obj",pt,elem);
+    int lmax;
+    int *srcBoxSet = (int*)malloc((numElem+1)*sizeof(int));
+    double d;
+    cartCoord_d pt_min;
+    srcBoxes(pt,elem,numElem,2,srcBoxSet,&lmax,&d,&pt_min);
+    printf("d=%f\n",d);
+    printf("Maximum level: %d\n",lmax);
+    printSet(srcBoxSet);
+    printPnts(&pt_min,1);
     free(pt);
-    free(wgt);
+    free(elem);
+    free(srcBoxSet);
     return EXIT_SUCCESS;
 }
 

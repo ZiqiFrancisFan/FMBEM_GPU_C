@@ -68,6 +68,42 @@ extern "C" {
     
     typedef struct rotAng rotAng;
     
+    struct transMat_rr
+    {
+        cartCoord transVec;
+        int level;
+        int p;
+        cuFloatComplex *rotMat1; //first rotation
+        cuFloatComplex *coaxTransMat; //coaxial translation
+        cuFloatComplex *rotMat2; //second rotation
+    };
+    
+    struct transMat_ss
+    {
+        cartCoord transVec;
+        int level;
+        int p;
+        cuFloatComplex *rotMat1; //first rotation
+        cuFloatComplex *coaxTransMat; //coaxial translation
+        cuFloatComplex *rotMat2; //second rotation
+    };
+    
+    struct transMat_sr
+    {
+        cartCoord transVec;
+        int level;
+        int p;
+        cuFloatComplex *rotMat1; //first rotation
+        cuFloatComplex *coaxTransMat; //coaxial translation
+        cuFloatComplex *rotMat2; //second rotation
+    };
+    
+    typedef struct transMat_rr transMat_rr;
+    
+    typedef struct transMat_ss transMat_ss;
+    
+    typedef struct transMat_sr transMat_sr;
+    
     __host__ __device__ float dotProd(const cartCoord u, const cartCoord v);
 
     __host__ __device__ cartCoord scalarMul(const float lambda, const cartCoord v);
@@ -87,8 +123,8 @@ extern "C" {
     __host__ __device__ sphCoord cart2sph(const cartCoord s);
 
     __host__ __device__ cartCoord sph2cart(const sphCoord s);
-
-
+    
+    __host__ __device__ cartCoord_d triCentroid_d(const cartCoord_d nod[3]);
 
 #ifdef __cplusplus
 }
