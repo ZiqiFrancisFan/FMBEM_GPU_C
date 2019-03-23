@@ -41,14 +41,14 @@ __host__ cuFloatComplex triElemIntegral_pRpn(const float wavNum, const cartCoord
 __host__ __device__ cuFloatComplex triElemIntegral_pGp1n_nsgl(const float wavNum, 
         const cartCoord nod[3], const cartCoord y, const float *pt, const float *wgt);
 
-__host__ cuFloatComplex triElemIntegral_pGp1n_sgl(const float wavNum, const cartCoord nod[3], 
+__host__ __device__ cuFloatComplex triElemIntegral_pGp1n_sgl(const float wavNum, const cartCoord nod[3], 
         const float *pt, const float *wgt);
 
 __host__ __device__ cuFloatComplex triElemIntegral_pGp2n_nsgl(const float wavNum, 
         const cartCoord nod[3], const cartCoord nrml, const cartCoord y, 
         const float *pt, const float *wgt);
 
-__host__ cuFloatComplex triElemIntegral_pGp2n_sgl(const float wavNum, 
+__host__ __device__ cuFloatComplex triElemIntegral_pGp2n_sgl(const float wavNum, 
         const cartCoord nod[3], const float *pt, const float *wgt);
 
 __host__ __device__ cuFloatComplex triElemIntegral_p2Gp1np2n_nsgl(const float wavNum, 

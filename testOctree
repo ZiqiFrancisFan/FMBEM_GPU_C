@@ -1,0 +1,47 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include "translation.h"
+#include "structs.h"
+#include "integral.h"
+#include "octree.h"
+
+
+int main (int argc, char** argv)
+{
+    cartCoord_d *pt;
+    triElem *elem;
+    int numPt, numElem;
+    findNum("Head_20kHz.obj",&numPt,&numElem);
+    pt = (cartCoord_d*)malloc(numPt*sizeof(cartCoord_d));
+    elem = (triElem*)malloc(numElem*sizeof(triElem));
+    readOBJ("Head_20kHz.obj",pt,elem);
+    int lmax;
+    int *srcBoxSet = (int*)malloc((numElem+1)*sizeof(int));
+    double d;
+    cartCoord_d pt_min;
+    srcBoxes(pt,elem,numElem,5,srcBoxSet,&lmax,&d,&pt_min);
+    sortSet(srcBoxSet);
+    printf("d=%f\n",d);
+    printf("Maximum level: %d\n",lmax);
+    printf("Number of boxes at the maxmimum level: %d.\n",srcBoxSet[0]);
+    int **levelSet = (int**)malloc((lmax-2+1)*sizeof(int*));
+    FMMLevelSet(srcBoxSet,lmax,levelSet);
+    for(int l=2;l<=lmax;l++) {
+        printf("Level: %d\n",l);
+        printSet(levelSet[l-2]);
+        free(levelSet[l-2]);
+    }
+    free(levelSet);
+    free(pt);
+    free(elem);
+    free(srcBoxSet);
+    return EXIT_SUCCESS;
+}
+
+

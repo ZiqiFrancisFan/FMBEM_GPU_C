@@ -1318,6 +1318,31 @@ __host__ int transMatsVecsMul_SR_rcr(const float wavNum, const cartCoord *trans,
     return EXIT_SUCCESS;
 }
 
+__host__ __device__ void cuMatVecMul_rcr(const cuFloatComplex *rotMat1, const cuFloatComplex *coaxMat, 
+        const cuFloatComplex *rotMat2, const cuFloatComplex *vec, const int p, cuFloatComplex *prod)
+{
+    cuFloatComplex *prod_1, *prod_2;
+    prod_1 = (cuFloatComplex*)malloc(p*p*sizeof(cuFloatComplex));
+    prod_2 = (cuFloatComplex*)malloc(p*p*sizeof(cuFloatComplex));
+    
+    cuRotVecMul(rotMat1,vec,p,prod_1);
+    cuCoaxTransMatVecMul(coaxMat,prod_1,p,prod_2);
+    cuRotVecMul(rotMat2,prod_2,p,prod);
+    
+    free(prod_1);
+    free(prod_2);
+}
+
+__global__ void cuMatsVecsMul_rcr(const cuFloatComplex *rotMat1, const cuFloatComplex *coaxMat, 
+        const cuFloatComplex *rotMat2, const cuFloatComplex *vec, const int num, const int p, 
+        cuFloatComplex *prod)
+{
+    int idx = threadIdx.x+blockIdx.x*blockDim.x;
+    if(idx < num) {
+        cuMatVecMul_rcr(&rotMat1[idx*p*p*p*p],&coaxMat[idx*p*p*p*p],&rotMat2[idx*p*p*p*p],
+                &vec[idx*p*p],p,&prod[idx*p*p]);
+    }
+}
 
 
 

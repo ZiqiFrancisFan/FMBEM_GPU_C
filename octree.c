@@ -767,7 +767,7 @@ void srcBoxes(const cartCoord_d *pnts, const triElem *elems, const int numElems,
         nod[2] = pnts[elems[i].node[2]];
         pnts_ctr[i] = triCentroid_d(nod);
     }
-    findBoundingCube(pnts_ctr,numElems,0,pnts_bnd,D);
+    findBoundingCube(pnts_ctr,numElems,0.1,pnts_bnd,D);
     *pnt_min = pnts_bnd[0];
     scalePnts(pnts_ctr,numElems,pnts_bnd[0],*D,pnts_scaled);
     *lmax = deterLmax(pnts_scaled,numElems,s);
@@ -781,9 +781,8 @@ void genOctPt(const int level, cartCoord_d *pt)
     }
 }
 
-/*
-int truncNum(const double k, const double eps, const double sigma, 
-        const double a) {
+int truncNum(const double k, const double eps, const double sigma, const double a)
+{
     double p_lo, p_hi, p, temp_d[2];
     temp_d[0] = eps*pow(1-1.0/sigma,1.5);
     temp_d[1] = log(temp_d[0])/log(sigma);
@@ -804,7 +803,8 @@ int truncNum(const double k, const double eps, const double sigma,
 }
 
 int truncNum_2(const double wavNum, const double eps, const double sigma, 
-        const double a) {
+        const double a)
+{
     double p;
     double ka_s = 3.0/(pow(2,1.5)*pow(sigma-1,1.5))*log(1.0/(eps*sigma));
     double p_s = 3.0*sigma/(pow(2,1.5)*pow(sigma-1,1.5))*log(1.0/(eps*sigma));
@@ -819,7 +819,6 @@ int truncNum_2(const double wavNum, const double eps, const double sigma,
 double descale_1d(const double a, const double D, const double v_min) {
     return D*a+v_min;
 }
-*/
 
 void prntLevelSet(const int *X, const int l, int *X_n)
 {
@@ -829,7 +828,7 @@ void prntLevelSet(const int *X, const int l, int *X_n)
     int i, num = 0, X_t[MAX];
     for(i=0;i<X[0];i++) {
         if(X[i+1]>=pow(8,l)) {
-            printf("Error in box number.\n");
+            printf("Error in box number: %d.\n",X[i+1]);
             return;
         }
         X_t[i] = parent(X[i+1]);
@@ -895,21 +894,20 @@ void FMMLvlSet_e(const int *Y, const int lmax, int ***pSet)
     //printf("completed FMMLvlSet_e\n");
 }
 
-//level Set is of size (lmax-lmin+1)
-void FMMLevelSet(const int *btmSet, const int lmax, int **levelSet)
+void FMMLevelSet(const int *btmLvl, const int lmax, int **pSet)
 {
-    //minimum level
+    int l;
     const int lmin = 2;
-    int tempSet[MAX];
-    //Allocate memory for the lmax level
-    levelSet[lmax-lmin] = (int*)malloc((btmSet[0]+1)*sizeof(int));
-    copySet(btmSet,levelSet[lmax-lmin]);
-    for(int l=lmax-1;l>=lmin;l--) {
-        //Boxes of the parent level of level l+1
-        prntLevelSet(levelSet[l+1-lmin],l+1,tempSet); 
-        levelSet[l-lmin] = (int*)malloc((tempSet[0]+1)*sizeof(int));
-        copySet(tempSet,levelSet[l-lmin]);
+    int set_temp[MAX];
+    //printf("allocated memory.\n");
+    pSet[lmax-lmin] = (int*)malloc((btmLvl[0]+1)*sizeof(int));
+    copySet(btmLvl,pSet[lmax-lmin]);
+    for(l=lmax-1;l>=lmin;l--) {
+        prntLevelSet(pSet[l+1-lmin],l+1,set_temp);
+        pSet[l-lmin] = (int*)malloc((set_temp[0]+1)*sizeof(int));
+        copySet(set_temp,pSet[l-lmin]);
     }
+    //printf("completed FMMLvlSet_e\n");
 }
 
 void sortSet(int *set) {

@@ -195,5 +195,8 @@ __host__ int transMatsVecsMul_SR_rcr(const float wavNum, const cartCoord *trans,
         const cuFloatComplex *coeff, const int num, const int p, cuFloatComplex *prod);
 
 __host__ __device__ cartCoord triCentroid(const cartCoord nod[3]);
+
+__host__ __device__ void cuMatVecMul_rcr(const cuFloatComplex *rotMat1, const cuFloatComplex *coaxMat, 
+        const cuFloatComplex *rotMat2, const cuFloatComplex *vec, const int p, cuFloatComplex *prod);
 #endif /* NUMERICAL_H */
 

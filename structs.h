@@ -22,7 +22,7 @@ extern "C" {
 
 #define IDXC0(row,column,stride) ((column)*(stride)+(row))
 
-    struct triElem 
+    struct triElem
     {
         int node[3]; //the three nodes on the triangular element
         cuFloatComplex alpha;
@@ -30,7 +30,7 @@ extern "C" {
         cuFloatComplex gamma;
     };
 
-    struct cartCoord 
+    struct cartCoord
     {
         float x;
         float y;
@@ -67,42 +67,6 @@ extern "C" {
     typedef struct sphCoord sphCoord;
     
     typedef struct rotAng rotAng;
-    
-    struct transMat_rr
-    {
-        cartCoord transVec;
-        int level;
-        int p;
-        cuFloatComplex *rotMat1; //first rotation
-        cuFloatComplex *coaxTransMat; //coaxial translation
-        cuFloatComplex *rotMat2; //second rotation
-    };
-    
-    struct transMat_ss
-    {
-        cartCoord transVec;
-        int level;
-        int p;
-        cuFloatComplex *rotMat1; //first rotation
-        cuFloatComplex *coaxTransMat; //coaxial translation
-        cuFloatComplex *rotMat2; //second rotation
-    };
-    
-    struct transMat_sr
-    {
-        cartCoord transVec;
-        int level;
-        int p;
-        cuFloatComplex *rotMat1; //first rotation
-        cuFloatComplex *coaxTransMat; //coaxial translation
-        cuFloatComplex *rotMat2; //second rotation
-    };
-    
-    typedef struct transMat_rr transMat_rr;
-    
-    typedef struct transMat_ss transMat_ss;
-    
-    typedef struct transMat_sr transMat_sr;
     
     __host__ __device__ float dotProd(const cartCoord u, const cartCoord v);
 
