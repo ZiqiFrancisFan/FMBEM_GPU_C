@@ -68,6 +68,19 @@ extern "C" {
     
     typedef struct rotAng rotAng;
     
+    struct octree
+    {
+        int **fmmLevelSet;
+        const double d;
+        const cartCoord_d x_min;
+        
+        cuFloatComplex **rotMat1;
+        cuFloatComplex **coaxMat;
+        cuFloatComplex **rotMat2;
+    };
+    
+    typedef struct octree octree;
+    
     __host__ __device__ float dotProd(const cartCoord u, const cartCoord v);
 
     __host__ __device__ cartCoord scalarMul(const float lambda, const cartCoord v);
