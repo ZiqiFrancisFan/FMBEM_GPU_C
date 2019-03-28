@@ -931,7 +931,7 @@ __host__ __device__ void getCoaxTransMatBlock(const cuFloatComplex *coaxTransMat
 __host__ __device__ void getBlockFromSparseCoaxTransMat(const cuFloatComplex *coaxTransMat, const int p, 
         const int m, cuFloatComplex *coaxTransMatBlock)
 {
-    int idx_s = abs(m)*(2*abs(m)*abs(m)+3*abs(m)+1)/6;
+    int idx_s = abs(m)*(2*abs(m)*abs(m)-(3+6*p)*abs(m)+1+6*(p+p*p))/6;
     int matsize = p-abs(m);
     for(int i=0;i<matsize*matsize;i++) {
         coaxTransMatBlock[i] = coaxTransMat[idx_s+i];
@@ -1034,6 +1034,26 @@ __host__ __device__ void cuCoaxTransMatVecMul(const cuFloatComplex *mat, const c
     }
 }
 
+__host__ __device__ void cuSparseCoaxTransMatVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
+        const int p, cuFloatComplex *prod)
+{
+    int matSize;
+    cuFloatComplex *blockMat, *blockVec, *blockProd;
+    for(int m=-(p-1);m<=p-1;m++) {
+        matSize = p-abs(m);
+        blockMat = (cuFloatComplex*)malloc(matSize*matSize*sizeof(cuFloatComplex));
+        blockVec = (cuFloatComplex*)malloc(matSize*sizeof(cuFloatComplex));
+        blockProd = (cuFloatComplex*)malloc(matSize*sizeof(cuFloatComplex));
+        getBlockFromSparseCoaxTransMat(mat,p,m,blockMat);
+        getCoaxVecBlock(vec,p,m,blockVec);
+        cuMatVecMul(blockMat,blockVec,matSize,blockProd);
+        sendCoaxVecBlock(blockProd,p,m,prod);
+        free(blockProd);
+        free(blockVec);
+        free(blockMat);
+    }
+}
+
 __global__ void cuRotsVecsMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
         const int num, const int p, cuFloatComplex *prod)
 {
@@ -1062,6 +1082,17 @@ __global__ void cuCoaxTransMatsVecsMul(const cuFloatComplex *mat, const cuFloatC
     if(idx < num) {
         int len = p*p;
         cuCoaxTransMatVecMul(&mat[idx*len*len],&vec[idx*len],p,&prod[idx*len]);
+    }
+}
+
+__global__ void cuSparseCoaxTransMatsVecsMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
+        const int num, const int p, cuFloatComplex *prod)
+{
+    int idx = threadIdx.x+blockIdx.x*blockDim.x;
+    if(idx < num) {
+        int matSize = p*(2*p*p+3*p+1)/6;
+        int vecSize = p*p;
+        cuSparseCoaxTransMatVecMul(&mat[idx*matSize],&vec[idx*vecSize],p,&prod[idx*vecSize]);
     }
 }
 
