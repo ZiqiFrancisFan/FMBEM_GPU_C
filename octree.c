@@ -569,7 +569,8 @@ void orderArray(const int *a, const int num, int *ind) {
     }
 }
 
-void findNum(const char * filename, int *pV, int *pE) {
+void findNum(const char *filename, int *pV, int *pE)
+{
     /*Find the number of vertices and elements in the current geometry*/
     int i = 0, j = 0; // For saving number of vertices and elements
     char line[50]; // For reading each line of file
@@ -591,7 +592,8 @@ void findNum(const char * filename, int *pV, int *pE) {
     fclose(fp);
 }
 
-int readOBJ(const char *filename, cartCoord_d *p, triElem *e) {
+int readOBJ(const char *filename, cartCoord_d *p, triElem *e)
+{
     int temp[3];
     FILE *fp = fopen(filename,"r");
     if (fp==NULL) {
@@ -910,6 +912,18 @@ void FMMLevelSet(const int *btmLvl, const int lmax, int **pSet)
     //printf("completed FMMLvlSet_e\n");
 }
 
+void FMMLevelSetNumSR(int **pSet, const int lmax, int **numSet)
+{
+    int set[27*27+1];
+    for(int l=2;l<=lmax;l++) {
+        numSet[l-2] = (int*)malloc(((pSet[l-2])[0])*sizeof(int));
+        for(int i=0;i<(pSet[l-2])[0];i++) {
+            I4((pSet[l-2])[i+1],l,set);
+            (numSet[l-2])[i] = set[0];
+        }
+    }
+}
+
 void sortSet(int *set) {
     int i, j, temp;
     for(i=1;i<=set[0];i++) {
@@ -922,5 +936,7 @@ void sortSet(int *set) {
         }
     }
 }
+
+
 
 

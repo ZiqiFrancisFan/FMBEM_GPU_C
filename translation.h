@@ -42,6 +42,10 @@ __typeof__ (b) _b = (b); \
 _a < _b ? _a : _b; })
 #endif
 
+#ifndef abs
+#define abs(x)  ( (x<0) ? -x : x )
+#endif
+
 #ifndef IDXC0
 #define IDXC0(row,col,ld) ((ld)*(col)+(row))
 #endif
@@ -162,6 +166,9 @@ int genRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatCom
 __host__ __device__ void getRotMatBlock(const cuFloatComplex *rotMat, const int p, const int n, 
         cuFloatComplex *rotMatBlock);
 
+__host__ __device__ void getBlockFromSparseRotMat(const cuFloatComplex *rotMat, const int n, 
+        cuFloatComplex *rotMatBlock);
+
 __host__ __device__ void getCoaxTransMatBlock(const cuFloatComplex *coaxTransMat, const int p, 
         const int m, cuFloatComplex *coaxTransMatBlock);
 
@@ -169,6 +176,9 @@ __host__ __device__ void cuMatVecMul(const cuFloatComplex *mat, const cuFloatCom
         const int len, cuFloatComplex *prod);
 
 __host__ __device__ void cuRotVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
+        const int p, cuFloatComplex *prod);
+
+__host__ __device__ void cuSparseRotVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
         const int p, cuFloatComplex *prod);
 
 __host__ __device__ void cuCoaxTransMatVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
@@ -198,5 +208,10 @@ __host__ __device__ cartCoord triCentroid(const cartCoord nod[3]);
 
 __host__ __device__ void cuMatVecMul_rcr(const cuFloatComplex *rotMat1, const cuFloatComplex *coaxMat, 
         const cuFloatComplex *rotMat2, const cuFloatComplex *vec, const int p, cuFloatComplex *prod);
+
+int genOctree(const char *filename, const float wavNum, const int s, octree *oct);
+
+int destroyOctree(octree *oct, const int lmax);
+
 #endif /* NUMERICAL_H */
 

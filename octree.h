@@ -125,6 +125,12 @@ extern "C" {
     int findSetInd(const int *X, const int num);
 
     void sortSet(int *set);
+    
+    void findNum(const char *filename, int *pV, int *pE);
+    
+    int readOBJ(const char *filename, cartCoord_d *p, triElem *e);
+    
+    void FMMLevelSetNumSR(int **pSet, const int lmax, int **numSet);
 
 
 

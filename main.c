@@ -14,8 +14,10 @@
 
 int main (int argc, char** argv)
 {
-    int p = truncNum(9.3,0.01,1.5,0.3/16);
-    printf("p=%d\n",p);
+    octree oct;
+    printf("%d\n",3/3);
+    genOctree("Head_20kHz.obj",9.3,1,&oct);
+    destroyOctree(&oct,oct.lmax);
     return EXIT_SUCCESS;
 }
 

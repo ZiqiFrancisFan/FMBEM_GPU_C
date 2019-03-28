@@ -71,12 +71,22 @@ extern "C" {
     struct octree
     {
         int **fmmLevelSet;
-        const double d;
-        const cartCoord_d x_min;
+        int lmax;
+        int lmin;
+        double d;
+        cartCoord_d pt_min;
         
-        cuFloatComplex **rotMat1;
-        cuFloatComplex **coaxMat;
-        cuFloatComplex **rotMat2;
+        cuFloatComplex **rotMat1_ss;
+        cuFloatComplex **coaxMat_ss;
+        cuFloatComplex **rotMat2_ss;
+        
+        cuFloatComplex **rotMat1_sr;
+        cuFloatComplex **coaxMat_sr;
+        cuFloatComplex **rotMat2_sr;
+        
+        cuFloatComplex **rotMat1_rr;
+        cuFloatComplex **coaxMat_rr;
+        cuFloatComplex **rotMat2_rr;
     };
     
     typedef struct octree octree;
@@ -101,7 +111,11 @@ extern "C" {
 
     __host__ __device__ cartCoord sph2cart(const sphCoord s);
     
+    __host__ __device__ cartCoord_d cartCoordSub_d(const cartCoord_d u, const cartCoord_d v);
+    
     __host__ __device__ cartCoord_d triCentroid_d(const cartCoord_d nod[3]);
+    
+    __host__ __device__ cartCoord cartCoord_d2cartCoord(const cartCoord_d s);
 
 #ifdef __cplusplus
 }

@@ -199,7 +199,7 @@ main : $(OBJ)
 main.o : main.c translation.h octree.h structs.h
 	$(EXEC) $(HOST_COMPILER) $(INCLUDES) $(CCFLAGS) $(EXTRA_CCFLAGS) -c main.c
 
-translation.o : translation.cu translation.h structs.h
+translation.o : translation.cu translation.h structs.h octree.h
 	$(NVCCONLY) -dc $(INCLUDES) $(ALL_CCFLAGS) $(EXTRA_CCFLAGS) $(GENCODE_FLAGS) translation.cu
 	
 integral.o : integral.cu integral.h structs.h

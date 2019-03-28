@@ -111,3 +111,12 @@ __host__ __device__ cartCoord_d triCentroid_d(const cartCoord_d nod[3])
     return centroid;
 }
 
+__host__ __device__ cartCoord cartCoord_d2cartCoord(const cartCoord_d s)
+{
+    cartCoord t;
+    t.x = s.x;
+    t.y = s.y;
+    t.z = s.z;
+    return t;
+}
+
