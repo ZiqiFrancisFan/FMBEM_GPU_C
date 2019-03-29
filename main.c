@@ -14,10 +14,15 @@
 
 int main (int argc, char** argv)
 {
-    octree oct;
-    printf("%d\n",3/3);
-    genOctree("Head_20kHz.obj",9.3,1,&oct);
-    destroyOctree(&oct,oct.lmax);
+    float transVec[2];
+    float wavNum = 10.5;
+    transVec[0] = 4.3;
+    transVec[1] = 3.2;
+    
+    int p = 3;
+    
+    HOST_CALL(testSparseCoaxTransMatsGen(wavNum,transVec,2,p));
+    
     return EXIT_SUCCESS;
 }
 

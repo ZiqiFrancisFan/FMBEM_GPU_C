@@ -155,22 +155,56 @@ int genSRTransMat(const float wavNum, const cartCoord* vec, const int numVec, co
 int genRRCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *mat);
 
+__host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
+        cuFloatComplex *sparseMat);
+
 int genSSCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *mat);
+
+__host__ int genSSSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
+        cuFloatComplex *sparseMat);
 
 int genSRCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *mat);
 
+__host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
+        cuFloatComplex *sparseMat);
+
 int genRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatComplex *rotMat);
 
+__host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatComplex *sparseMat);
+
+//get the nth block from the dense rotation matrix of order p
 __host__ __device__ void getRotMatBlock(const cuFloatComplex *rotMat, const int p, const int n, 
         cuFloatComplex *rotMatBlock);
 
+//retrieve the nth block rotMatBlock from the sparse matrix rotMat
 __host__ __device__ void getBlockFromSparseRotMat(const cuFloatComplex *rotMat, const int n, 
         cuFloatComplex *rotMatBlock);
 
+//convert the rotation matrix from a dense matrix to a sparse matrix
+__host__ __device__ void getSparseMatFromRotMat(const cuFloatComplex *rotMat, const int p, 
+        cuFloatComplex *sparseRotMat);
+
+//convert an array of rotation matrices from the dense form to the sparse form
+__global__ void getSparseMatsFromRotMats(const cuFloatComplex *rotMat, const int num, const int p, 
+        cuFloatComplex *sparseRotMat);
+
+//get the nth block from the dense coaxial translation matrix of order p
 __host__ __device__ void getCoaxTransMatBlock(const cuFloatComplex *coaxTransMat, const int p, 
         const int m, cuFloatComplex *coaxTransMatBlock);
+
+//retrieve the mth block from the sparse coaxial translation matrix
+__host__ __device__ void getBlockFromSparseCoaxTransMat(const cuFloatComplex *coaxTransMat, const int p, 
+        const int m, cuFloatComplex *coaxTransMatBlock);
+
+//convert the coaxial translation matrix from a dense matrix to a sparse matrix
+__host__ __device__ void getSparseMatFromCoaxTransMat(const cuFloatComplex *coaxTransMat, const int p, 
+        cuFloatComplex *sparseCoaxTransMat);
+
+//convert an array of coaxial translation matrices from the dense form to the sparse form
+__global__ void getSparseMatsFromCoaxTransMats(const cuFloatComplex *coaxTransMat, const int num, 
+        const int p, cuFloatComplex *sparseCoaxTransMat);
 
 __host__ __device__ void cuMatVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
         const int len, cuFloatComplex *prod);
@@ -181,9 +215,16 @@ __host__ __device__ void cuRotVecMul(const cuFloatComplex *mat, const cuFloatCom
 __host__ __device__ void cuSparseRotVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
         const int p, cuFloatComplex *prod);
 
+__global__ void cuSparseRotsVecsMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
+        const int num, const int p, cuFloatComplex *prod);
+
 __host__ __device__ void cuCoaxTransMatVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
         const int p, cuFloatComplex *prod);
 
+__host__ __device__ void cuSparseCoaxTransMatVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
+        const int p, cuFloatComplex *prod);
+
+//generate random coefficients of order num
 __host__ int genRndCoeffs(const int num, cuFloatComplex *coeff);
 
 __host__ int transMatsVecsMul_RR(const float wavNum, const cartCoord *trans, const cuFloatComplex *coeff, 
@@ -212,6 +253,11 @@ __host__ __device__ void cuMatVecMul_rcr(const cuFloatComplex *rotMat1, const cu
 int genOctree(const char *filename, const float wavNum, const int s, octree *oct);
 
 int destroyOctree(octree *oct, const int lmax);
+
+__host__ int testSparseRotMatsGen(const rotAng *rotAngle, const int numRot, const int p);
+
+__host__ int testSparseCoaxTransMatsGen(const float wavNum, const float *transVec, const int numTransVec, 
+        const int p);
 
 #endif /* NUMERICAL_H */
 

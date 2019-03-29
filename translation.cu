@@ -20,6 +20,7 @@ void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const in
     }
 }
 
+//matrix-vector multiplication; len is the size of the vector and the square matrix
 __host__ __device__ void cuMatVecMul(const cuFloatComplex *mat, const cuFloatComplex *vec, 
         const int len, cuFloatComplex *prod)
 {
@@ -667,10 +668,102 @@ int genRRCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
     return EXIT_SUCCESS;
 }
 
+__host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
+        cuFloatComplex *sparseMat)
+{
+    //compute the number of matrices that can be allocated each time on the GPU
+    size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*p*p*p+p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex), 
+            totalMem, freeMem;
+    CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+    int numMatsPerAlloc = freeMem/matMem, numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
+    int restNumVec = numVec; //the remaining number of vectors not processed
+    cuFloatComplex *enlMat_h, *denseMat_d, *enlMat_d, *sparseMat_d; //pointers for host and device memory
+    
+    //iterate through all blocks
+    for(int i=0;i<numGen;i++) {
+        //update the rest number of vectors to be processed
+        restNumVec-=i*numMatsPerAlloc;
+        
+        //tell if the rest number of vectors is smaller than numMatsPerAlloc
+        if(restNumVec>=numMatsPerAlloc) {
+            //Allocate memory and initialize the matrices
+            enlMat_h = (cuFloatComplex*)malloc(numMatsPerAlloc*(2*p-1)*(2*p-1)
+                    *(2*p-1)*(2*p-1)*sizeof(cuFloatComplex));
+            
+            rrCoaxTransMatsInit(wavNum,&vec[i*numMatsPerAlloc],numMatsPerAlloc,p,enlMat_h);
+            
+            //compute the number of blocks per grid
+            int numBlocksPerGrid, numThreadsPerBlock = 32;
+            numBlocksPerGrid = (numMatsPerAlloc+numThreadsPerBlock-1)/numThreadsPerBlock;
+            dim3 gridStruct(numBlocksPerGrid,1,1);
+            dim3 blockStruct(numThreadsPerBlock,1,1);
+            
+            //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
+            CUDA_CALL(cudaMalloc(&enlMat_d,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&denseMat_d,numMatsPerAlloc*p*p*p*p*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&sparseMat_d,numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
+            
+            //copy initialized enlarged matrices from host to device
+            CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
+                    ,cudaMemcpyHostToDevice));
+            
+            //update coaxial translation matrices and copy them to the host
+            coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numMatsPerAlloc,p,denseMat_d);
+            getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
+            
+            CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
+                    sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*numMatsPerAlloc,cudaMemcpyDeviceToHost));
+        } else {
+            //allocate memory and initialize the matrices
+            enlMat_h = (cuFloatComplex*)malloc(restNumVec*(2*p-1)*(2*p-1)
+                    *(2*p-1)*(2*p-1)*sizeof(cuFloatComplex));
+            
+            rrCoaxTransMatsInit(wavNum,&vec[i*numMatsPerAlloc],restNumVec,p,enlMat_h);
+            
+            //compute the number of blocks per grid
+            int numBlocksPerGrid, numThreadsPerBlock = 32;
+            numBlocksPerGrid = (restNumVec+numThreadsPerBlock-1)/numThreadsPerBlock;
+            dim3 gridStruct(numBlocksPerGrid,1,1);
+            dim3 blockStruct(numThreadsPerBlock,1,1);
+            
+            //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
+            CUDA_CALL(cudaMalloc(&enlMat_d,restNumVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&denseMat_d,restNumVec*p*p*p*p*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&sparseMat_d,restNumVec*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
+            
+            //copy initialized enlarged matrices from host to device
+            CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,restNumVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
+                    ,cudaMemcpyHostToDevice));
+            
+            //update coaxial translation matrices and copy them to the host
+            coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,restNumVec,p,denseMat_d);
+            getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumVec,p,sparseMat_d);
+            
+            CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
+                    sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*restNumVec,cudaMemcpyDeviceToHost));
+        }
+        
+        free(enlMat_h);
+        CUDA_CALL(cudaFree(enlMat_d));
+        CUDA_CALL(cudaFree(denseMat_d));
+        CUDA_CALL(cudaFree(sparseMat_d));
+        
+    }
+    
+    return EXIT_SUCCESS;
+}
+
 int genSSCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *mat)
 {
     HOST_CALL(genRRCoaxTransMat(wavNum,vec,numVec,p,mat));
+    return EXIT_SUCCESS;
+}
+
+__host__ int genSSSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
+        cuFloatComplex *sparseMat)
+{
+    HOST_CALL(genRRSparseCoaxTransMat(wavNum,vec,numVec,p,sparseMat));
     return EXIT_SUCCESS;
 }
 
@@ -734,6 +827,91 @@ int genSRCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
     CUDA_CALL(cudaFree(enlMat_d));
     CUDA_CALL(cudaFree(mat_d));
     free(enlMat_h);
+    return EXIT_SUCCESS;
+}
+
+__host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
+        cuFloatComplex *sparseMat)
+{
+    //compute the number of matrices that can be allocated each time on the GPU
+    size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*p*p*p+p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex), 
+            totalMem, freeMem;
+    CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+    int numMatsPerAlloc = freeMem/matMem, numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
+    int restNumVec = numVec; //the remaining number of vectors not processed
+    cuFloatComplex *enlMat_h, *denseMat_d, *enlMat_d, *sparseMat_d; //pointers for host and device memory
+    
+    //iterate through all blocks
+    for(int i=0;i<numGen;i++) {
+        //update the rest number of vectors to be processed
+        restNumVec-=i*numMatsPerAlloc;
+        
+        //tell if the rest number of vectors is smaller than numMatsPerAlloc
+        if(restNumVec>=numMatsPerAlloc) {
+            //Allocate memory and initialize the matrices
+            enlMat_h = (cuFloatComplex*)malloc(numMatsPerAlloc*(2*p-1)*(2*p-1)
+                    *(2*p-1)*(2*p-1)*sizeof(cuFloatComplex));
+            
+            srCoaxTransMatsInit(wavNum,&vec[i*numMatsPerAlloc],numMatsPerAlloc,p,enlMat_h);
+            
+            //compute the number of blocks per grid
+            int numBlocksPerGrid, numThreadsPerBlock = 32;
+            numBlocksPerGrid = (numMatsPerAlloc+numThreadsPerBlock-1)/numThreadsPerBlock;
+            dim3 gridStruct(numBlocksPerGrid,1,1);
+            dim3 blockStruct(numThreadsPerBlock,1,1);
+            
+            //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
+            CUDA_CALL(cudaMalloc(&enlMat_d,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&denseMat_d,numMatsPerAlloc*p*p*p*p*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&sparseMat_d,numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
+            
+            //copy initialized enlarged matrices from host to device
+            CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
+                    ,cudaMemcpyHostToDevice));
+            
+            //update coaxial translation matrices and copy them to the host
+            coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numMatsPerAlloc,p,denseMat_d);
+            getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
+            
+            CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
+                    sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*numMatsPerAlloc,cudaMemcpyDeviceToHost));
+        } else {
+            //allocate memory and initialize the matrices
+            enlMat_h = (cuFloatComplex*)malloc(restNumVec*(2*p-1)*(2*p-1)
+                    *(2*p-1)*(2*p-1)*sizeof(cuFloatComplex));
+            
+            srCoaxTransMatsInit(wavNum,&vec[i*numMatsPerAlloc],restNumVec,p,enlMat_h);
+            
+            //compute the number of blocks per grid
+            int numBlocksPerGrid, numThreadsPerBlock = 32;
+            numBlocksPerGrid = (restNumVec+numThreadsPerBlock-1)/numThreadsPerBlock;
+            dim3 gridStruct(numBlocksPerGrid,1,1);
+            dim3 blockStruct(numThreadsPerBlock,1,1);
+            
+            //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
+            CUDA_CALL(cudaMalloc(&enlMat_d,restNumVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&denseMat_d,restNumVec*p*p*p*p*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&sparseMat_d,restNumVec*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
+            
+            //copy initialized enlarged matrices from host to device
+            CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,restNumVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
+                    ,cudaMemcpyHostToDevice));
+            
+            //update coaxial translation matrices and copy them to the host
+            coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,restNumVec,p,denseMat_d);
+            getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumVec,p,sparseMat_d);
+            
+            CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
+                    sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*restNumVec,cudaMemcpyDeviceToHost));
+        }
+        
+        free(enlMat_h);
+        CUDA_CALL(cudaFree(enlMat_d));
+        CUDA_CALL(cudaFree(denseMat_d));
+        CUDA_CALL(cudaFree(sparseMat_d));
+        
+    }
+    
     return EXIT_SUCCESS;
 }
 
@@ -893,6 +1071,105 @@ int genRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatCom
     return EXIT_SUCCESS;
 }
 
+__host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatComplex *sparseMat)
+{
+    //compute the memory required for each sparse rotation matrix
+    size_t matMem = (2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)+(p*p*p*p+p*(4*p*p-1)/3)*sizeof(cuFloatComplex), 
+            totalMem, freeMem;
+    //get gpu memory information
+    CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+    //compute the number of generations
+    int numMatsPerAlloc = freeMem/matMem, numGen = (numRot+numMatsPerAlloc-1)/numMatsPerAlloc;
+    int restNumRot = numRot; //the remaining number of rotations to be processed
+    
+    //allocate memory
+    rotAng *rotAngle_d;
+    float *enlMat_h, *enlMat_d;
+    cuFloatComplex *denseMat_d, *sparseMat_d; //pointers for host and device memory
+    
+    //iterate through the generations
+    for(int i=0;i<numGen;i++) {
+        //update the rest number of vectors to be processed
+        restNumRot-=i*numMatsPerAlloc;
+        
+        //tell if the rest number of vectors is smaller than numMatsPerAlloc
+        if(restNumRot>=numMatsPerAlloc) {
+            //allocate memory for rotation angles and copy the angles from host to device
+            CUDA_CALL(cudaMalloc(&rotAngle_d,numMatsPerAlloc*sizeof(rotAng)));
+            CUDA_CALL(cudaMemcpy(rotAngle_d,&rotAngle[i*numMatsPerAlloc],numMatsPerAlloc*sizeof(rotAng),
+                    cudaMemcpyHostToDevice));
+            
+            //allocate memory and initialize the matrices
+            enlMat_h = (float*)malloc(numMatsPerAlloc*(2*p-1)*(2*p-1)
+                    *(2*p-1)*(2*p-1)*sizeof(float));
+            rotMatsInit(&rotAngle[i*numMatsPerAlloc],numMatsPerAlloc,p,enlMat_h);
+            
+            //compute the number of blocks per grid
+            int numBlocksPerGrid, numThreadsPerBlock = 32;
+            numBlocksPerGrid = (numMatsPerAlloc+numThreadsPerBlock-1)/numThreadsPerBlock;
+            dim3 gridStruct(numBlocksPerGrid,1,1);
+            dim3 blockStruct(numThreadsPerBlock,1,1);
+            
+            //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
+            CUDA_CALL(cudaMalloc(&enlMat_d,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)));
+            CUDA_CALL(cudaMalloc(&denseMat_d,numMatsPerAlloc*p*p*p*p*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&sparseMat_d,numMatsPerAlloc*(p*(4*p*p-1)/3)*sizeof(cuFloatComplex)));
+            
+            //copy initialized enlarged matrices from host to device
+            CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)
+                    ,cudaMemcpyHostToDevice));
+            
+            //update rotation matrices and copy them to the host
+            rotMatsGen<<<gridStruct,blockStruct>>>(rotAngle_d,numMatsPerAlloc,p,enlMat_d,denseMat_d);
+            getSparseMatsFromRotMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
+            
+            CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(4*p*p-1)/3)],sparseMat_d,
+                    sizeof(cuFloatComplex)*(p*(4*p*p-1)/3)*numMatsPerAlloc,cudaMemcpyDeviceToHost));
+        } else {
+            //allocate memory for rotation angles and copy the angles from host to device
+            CUDA_CALL(cudaMalloc(&rotAngle_d,restNumRot*sizeof(rotAng)));
+            CUDA_CALL(cudaMemcpy(rotAngle_d,&rotAngle[i*numMatsPerAlloc],restNumRot*sizeof(rotAng),
+                    cudaMemcpyHostToDevice));
+            
+            //allocate memory and initialize the matrices
+            enlMat_h = (float*)malloc(restNumRot*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float));
+            
+            rotMatsInit(&rotAngle[i*numMatsPerAlloc],restNumRot,p,enlMat_h);
+            
+            //compute the number of blocks per grid
+            int numBlocksPerGrid, numThreadsPerBlock = 32;
+            numBlocksPerGrid = (restNumRot+numThreadsPerBlock-1)/numThreadsPerBlock;
+            dim3 gridStruct(numBlocksPerGrid,1,1);
+            dim3 blockStruct(numThreadsPerBlock,1,1);
+            
+            //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
+            CUDA_CALL(cudaMalloc(&enlMat_d,restNumRot*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)));
+            CUDA_CALL(cudaMalloc(&denseMat_d,restNumRot*p*p*p*p*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMalloc(&sparseMat_d,restNumRot*(p*(4*p*p-1)/3)*sizeof(cuFloatComplex)));
+            
+            //copy initialized enlarged matrices from host to device
+            CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,restNumRot*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)
+                    ,cudaMemcpyHostToDevice));
+            
+            //update rotation matrices and copy them to the host
+            rotMatsGen<<<gridStruct,blockStruct>>>(rotAngle_d,restNumRot,p,enlMat_d,denseMat_d);
+            getSparseMatsFromRotMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumRot,p,sparseMat_d);
+            
+            CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(4*p*p-1)/3)],sparseMat_d,
+                    sizeof(cuFloatComplex)*(p*(4*p*p-1)/3)*restNumRot,cudaMemcpyDeviceToHost));
+        }
+        
+        free(enlMat_h);
+        CUDA_CALL(cudaFree(rotAngle_d));
+        CUDA_CALL(cudaFree(enlMat_d));
+        CUDA_CALL(cudaFree(denseMat_d));
+        CUDA_CALL(cudaFree(sparseMat_d));
+        
+    }
+    
+    return EXIT_SUCCESS;
+}
+
 __host__ __device__ void getRotMatBlock(const cuFloatComplex *rotMat, const int p, const int n, 
         cuFloatComplex *rotMatBlock)
 {
@@ -912,6 +1189,35 @@ __host__ __device__ void getBlockFromSparseRotMat(const cuFloatComplex *rotMat, 
     //int idx_e = (n+1)*(4*(n+1)*(n+1)-1)/3-1;
     for(int i=0;i<(2*n+1)*(2*n+1);i++) {
         rotMatBlock[i] = rotMat[idx_s+i];
+    }
+}
+
+//convert the rotation matrix from a dense matrix to a sparse matrix
+__host__ __device__ void getSparseMatFromRotMat(const cuFloatComplex *rotMat, const int p, 
+        cuFloatComplex *sparseRotMat)
+{
+    int idx, matSize;
+    cuFloatComplex *matBlock;
+    for(int n=0;n<p;n++) {
+        matSize = 2*n+1;
+        matBlock = (cuFloatComplex*)malloc(matSize*matSize*sizeof(cuFloatComplex));
+        getRotMatBlock(rotMat,p,n,matBlock);
+        idx = n*(4*n*n-1)/3;
+        for(int i=0;i<matSize*matSize;i++) {
+            sparseRotMat[idx+i] = matBlock[i];
+        }
+        free(matBlock);
+    }
+}
+
+//convert an array of rotation matrices from the dense form to the sparse form
+__global__ void getSparseMatsFromRotMats(const cuFloatComplex *rotMat, const int num, const int p, 
+        cuFloatComplex *sparseRotMat)
+{
+    int idx = threadIdx.x+blockIdx.x*blockDim.x;
+    if(idx < num) {
+        int denseMatSize = p*p*p*p, sparseMatSize = p*(4*p*p-1)/3;
+        getSparseMatFromRotMat(&rotMat[idx*denseMatSize],p,&sparseRotMat[idx*sparseMatSize]);
     }
 }
 
@@ -935,6 +1241,33 @@ __host__ __device__ void getBlockFromSparseCoaxTransMat(const cuFloatComplex *co
     int matsize = p-abs(m);
     for(int i=0;i<matsize*matsize;i++) {
         coaxTransMatBlock[i] = coaxTransMat[idx_s+i];
+    }
+}
+
+__host__ __device__ void getSparseMatFromCoaxTransMat(const cuFloatComplex *coaxTransMat, const int p, 
+        cuFloatComplex *sparseCoaxTransMat)
+{
+    int idx, matSize;
+    cuFloatComplex *matBlock;
+    for(int m=0;m<p;m++) {
+        idx = m*(2*m*m-(3+6*p)*m+1+6*(p+p*p))/6;
+        matSize = (p-m)*(p-m);
+        matBlock = (cuFloatComplex*)malloc(matSize*sizeof(cuFloatComplex));
+        getCoaxTransMatBlock(coaxTransMat,p,m,matBlock);
+        for(int i=0;i<matSize;i++) {
+            sparseCoaxTransMat[idx+i] = matBlock[i];
+        }
+        free(matBlock);
+    }
+}
+
+__global__ void getSparseMatsFromCoaxTransMats(const cuFloatComplex *coaxTransMat, const int num, 
+        const int p, cuFloatComplex *sparseCoaxTransMat)
+{
+    int idx = threadIdx.x+blockIdx.x*blockDim.x;
+    if(idx < num) {
+        int denseMatSize = p*p*p*p, sparseMatSize = p*(2*p*p+3*p+1)/6;
+        getSparseMatFromCoaxTransMat(&coaxTransMat[idx*denseMatSize],p,&sparseCoaxTransMat[idx*sparseMatSize]);
     }
 }
 
@@ -1751,6 +2084,139 @@ int destroyOctree(octree *oct, const int lmax)
         free(oct->fmmLevelSet[l-2]);
     }
     free(oct->fmmLevelSet);
+    return EXIT_SUCCESS;
+}
+
+__host__ int testSparseRotMatsGen(const rotAng *rotAngle, const int numRot, const int p)
+{
+    //allocate memory for the products
+    cuFloatComplex *prod_h = (cuFloatComplex*)malloc(numRot*p*p*sizeof(cuFloatComplex));
+    cuFloatComplex *prod_d;
+    CUDA_CALL(cudaMalloc(&prod_d,numRot*p*p*sizeof(cuFloatComplex)));
+    
+    //generate random vectors for multiplication
+    cuFloatComplex *vec_h = (cuFloatComplex*)malloc(numRot*p*p*sizeof(cuFloatComplex));
+    HOST_CALL(genRndCoeffs(numRot*p*p,vec_h));
+    
+    //copy the vectors to the device memory
+    cuFloatComplex *vec_d;
+    CUDA_CALL(cudaMalloc(&vec_d,numRot*p*p*sizeof(cuFloatComplex)));
+    CUDA_CALL(cudaMemcpy(vec_d,vec_h,numRot*p*p*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+    
+    //generate sparse rotation matrices
+    cuFloatComplex *sparseRotMat_h = (cuFloatComplex*)malloc(numRot*(p*(4*p*p-1)/3)*sizeof(cuFloatComplex));
+    HOST_CALL(genSparseRotMats(rotAngle,numRot,p,sparseRotMat_h));
+    
+    //allocate device memory to save the sparse rotation matrices
+    cuFloatComplex *sparseRotMat_d;
+    CUDA_CALL(cudaMalloc(&sparseRotMat_d,numRot*(p*(4*p*p-1)/3)*sizeof(cuFloatComplex)));
+    CUDA_CALL(cudaMemcpy(sparseRotMat_d,sparseRotMat_h,numRot*(p*(4*p*p-1)/3)*sizeof(cuFloatComplex),
+            cudaMemcpyHostToDevice));
+    
+    int numBlocksPerGrid, numThreadsPerBlock = 32;
+    numBlocksPerGrid = (numRot+numThreadsPerBlock-1)/numThreadsPerBlock;
+    dim3 gridStruct(numBlocksPerGrid,1,1);
+    dim3 blockStruct(numThreadsPerBlock,1,1);
+    
+    cuSparseRotsVecsMul<<<gridStruct,blockStruct>>>(sparseRotMat_d,vec_d,numRot,p,prod_d);
+    CUDA_CALL(cudaMemcpy(prod_h,prod_d,numRot*p*p*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+    
+    //print the products
+    printf("Sparse: \n");
+    for(int i=0;i<numRot;i++) {
+        printMat_cuFloatComplex(&prod_h[i*p*p],1,p*p,1);
+    }
+    
+    cuFloatComplex *denseRotMat_h = (cuFloatComplex*)malloc(numRot*p*p*p*p*sizeof(cuFloatComplex));
+    HOST_CALL(genRotMats(rotAngle,numRot,p,denseRotMat_h));
+    cuFloatComplex *denseRotMat_d;
+    CUDA_CALL(cudaMalloc(&denseRotMat_d,numRot*p*p*p*p*sizeof(cuFloatComplex)));
+    CUDA_CALL(cudaMemcpy(denseRotMat_d,denseRotMat_h,numRot*p*p*p*p*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+    cuMatsVecsMul<<<gridStruct,blockStruct>>>(denseRotMat_d,vec_d,numRot,p*p,prod_d);
+    CUDA_CALL(cudaMemcpy(prod_h,prod_d,numRot*p*p*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+    
+    printf("Dense: \n");
+    for(int i=0;i<numRot;i++) {
+        printMat_cuFloatComplex(&prod_h[i*p*p],1,p*p,1);
+    }
+    
+    free(denseRotMat_h);
+    free(sparseRotMat_h);
+    free(vec_h);
+    free(prod_h);
+    
+    CUDA_CALL(cudaFree(sparseRotMat_d));
+    CUDA_CALL(cudaFree(denseRotMat_d));
+    CUDA_CALL(cudaFree(vec_d));
+    CUDA_CALL(cudaFree(prod_d));
+    
+    return EXIT_SUCCESS;
+}
+
+__host__ int testSparseCoaxTransMatsGen(const float wavNum, const float *transVec, const int numTransVec, 
+        const int p)
+{
+    //allocate memory for the products
+    cuFloatComplex *prod_h = (cuFloatComplex*)malloc(numTransVec*p*p*sizeof(cuFloatComplex));
+    cuFloatComplex *prod_d;
+    CUDA_CALL(cudaMalloc(&prod_d,numTransVec*p*p*sizeof(cuFloatComplex)));
+    
+    //generate random vectors for multiplication
+    cuFloatComplex *vec_h = (cuFloatComplex*)malloc(numTransVec*p*p*sizeof(cuFloatComplex));
+    HOST_CALL(genRndCoeffs(numTransVec*p*p,vec_h));
+    
+    //copy the vectors to the device memory
+    cuFloatComplex *vec_d;
+    CUDA_CALL(cudaMalloc(&vec_d,numTransVec*p*p*sizeof(cuFloatComplex)));
+    CUDA_CALL(cudaMemcpy(vec_d,vec_h,numTransVec*p*p*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+    
+    //generate sparse coaxial translation matrices
+    cuFloatComplex *sparseMat_h = (cuFloatComplex*)malloc(numTransVec*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex));
+    HOST_CALL(genSSSparseCoaxTransMat(wavNum,transVec,numTransVec,p,sparseMat_h));
+    
+    //allocate device memory to save the sparse rotation matrices
+    cuFloatComplex *sparseMat_d;
+    CUDA_CALL(cudaMalloc(&sparseMat_d,numTransVec*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
+    CUDA_CALL(cudaMemcpy(sparseMat_d,sparseMat_h,numTransVec*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex),
+            cudaMemcpyHostToDevice));
+    
+    int numBlocksPerGrid, numThreadsPerBlock = 32;
+    numBlocksPerGrid = (numTransVec+numThreadsPerBlock-1)/numThreadsPerBlock;
+    dim3 gridStruct(numBlocksPerGrid,1,1);
+    dim3 blockStruct(numThreadsPerBlock,1,1);
+    
+    cuSparseCoaxTransMatsVecsMul<<<gridStruct,blockStruct>>>(sparseMat_d,vec_d,numTransVec,p,prod_d);
+    CUDA_CALL(cudaMemcpy(prod_h,prod_d,numTransVec*p*p*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+    
+    //print the products
+    printf("Sparse: \n");
+    for(int i=0;i<numTransVec;i++) {
+        printMat_cuFloatComplex(&prod_h[i*p*p],1,p*p,1);
+    }
+    
+    cuFloatComplex *denseMat_h = (cuFloatComplex*)malloc(numTransVec*p*p*p*p*sizeof(cuFloatComplex));
+    HOST_CALL(genSSCoaxTransMat(wavNum,transVec,numTransVec,p,denseMat_h));
+    cuFloatComplex *denseMat_d;
+    CUDA_CALL(cudaMalloc(&denseMat_d,numTransVec*p*p*p*p*sizeof(cuFloatComplex)));
+    CUDA_CALL(cudaMemcpy(denseMat_d,denseMat_h,numTransVec*p*p*p*p*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+    cuMatsVecsMul<<<gridStruct,blockStruct>>>(denseMat_d,vec_d,numTransVec,p*p,prod_d);
+    CUDA_CALL(cudaMemcpy(prod_h,prod_d,numTransVec*p*p*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+    
+    printf("Dense: \n");
+    for(int i=0;i<numTransVec;i++) {
+        printMat_cuFloatComplex(&prod_h[i*p*p],1,p*p,1);
+    }
+    
+    free(denseMat_h);
+    free(sparseMat_h);
+    free(vec_h);
+    free(prod_h);
+    
+    CUDA_CALL(cudaFree(sparseMat_d));
+    CUDA_CALL(cudaFree(denseMat_d));
+    CUDA_CALL(cudaFree(vec_d));
+    CUDA_CALL(cudaFree(prod_d));
+    
     return EXIT_SUCCESS;
 }
 

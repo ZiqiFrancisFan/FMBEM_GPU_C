@@ -76,6 +76,7 @@ extern "C" {
         double d;
         cartCoord_d pt_min;
         
+        //sparse matrices for ss, sr and rr translations
         cuFloatComplex **rotMat1_ss;
         cuFloatComplex **coaxMat_ss;
         cuFloatComplex **rotMat2_ss;
