@@ -14,14 +14,27 @@
 
 int main (int argc, char** argv)
 {
-    float transVec[2];
-    float wavNum = 10.5;
-    transVec[0] = 4.3;
-    transVec[1] = 3.2;
-    
+    CUDA_CALL(cudaDeviceSetLimit(cudaLimitMallocHeapSize,512*1024*1024));
     int p = 3;
+    float t = 5.3, wavNum = 9.5;
+    cuFloatComplex *H = (cuFloatComplex*)malloc((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex));
+    cuFloatComplex *denseMat = (cuFloatComplex*)malloc(p*p*p*p*sizeof(cuFloatComplex));
+    cuFloatComplex *sparseMat = (cuFloatComplex*)malloc(p*(2*p*p+3*p+1)/6*sizeof(cuFloatComplex));
     
-    HOST_CALL(testSparseCoaxTransMatsGen(wavNum,transVec,2,p));
+    srCoaxTransMatsInit(wavNum,&t,1,p,H);
+    coaxTransMatGen(H,p,denseMat);
+    getSparseMatFromCoaxTransMat(denseMat,p,sparseMat);
+    printf("Dense to sparse: \n");
+    printMat_cuFloatComplex(sparseMat,1,p*(2*p*p+3*p+1)/6,1);
+    
+    srCoaxTransMatsInit(wavNum,&t,1,p,H);
+    sparseCoaxTransMatGen(H,p,sparseMat);
+    printf("Sparse: \n");
+    printMat_cuFloatComplex(sparseMat,1,p*(2*p*p+3*p+1)/6,1);
+    
+    free(H);
+    free(denseMat);
+    free(sparseMat);
     
     return EXIT_SUCCESS;
 }

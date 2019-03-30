@@ -170,6 +170,39 @@ int genSRCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
 __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *sparseMat);
 
+//initialize rotation matrices
+__host__ void rotMatsInit(const rotAng *rotAngle, const int numAng, const int p, float *H);
+
+//generate the rotation matrix from the initialized matrix H and the rotation angle rotAngle
+__host__ __device__ void rotMatGen(const rotAng rotAngle, const int p, float *H,  
+        cuFloatComplex *rotMat);
+
+//generate the sparse rotation matrix from the initialized matrix H and the rotation angle rotAngle
+__host__ __device__ void sparseRotMatGen(const rotAng rotAngle, const int p, float *H,  
+        cuFloatComplex *sparseRotMat);
+
+__global__ void rotMatsGen(const rotAng *rotAngle, const int numRot, const int p, 
+        float *H_enl, cuFloatComplex *rotMat);
+
+__global__ void sparseRotMatsGen(const rotAng *rotAngle, const int numRot, const int p, 
+        float *H_enl, cuFloatComplex *sparseRotMat);
+
+__host__ void rrCoaxTransMatsInit(const float wavNum, const float *vec, const int numVec, 
+        const int p, cuFloatComplex *mat);
+
+__host__ void ssCoaxTransMatsInit(const float wavNum, const float *vec, const int numVec, 
+        const int p, cuFloatComplex *mat);
+
+__host__ void srCoaxTransMatsInit(const float wavNum, const float *vec, const int numVec, 
+        const int p, cuFloatComplex *mat);
+
+__host__ __device__ void coaxTransMatGen(cuFloatComplex *enlMat, const int p, cuFloatComplex *mat);
+
+__host__ __device__ void sparseCoaxTransMatGen(cuFloatComplex *enlMat, const int p, cuFloatComplex *sparseMat);
+
+__global__ void sparseCoaxTransMatsGen(cuFloatComplex *enlMat, const int num, const int p, 
+        cuFloatComplex *sparseMat);
+
 int genRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatComplex *rotMat);
 
 __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatComplex *sparseMat);

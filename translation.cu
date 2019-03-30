@@ -507,7 +507,8 @@ int genSRTransMat(const float wavNum, const cartCoord* vec, const int numVec, co
 }
 
 __host__ void rrCoaxTransMatsInit(const float wavNum, const float *vec, const int numVec, 
-        const int p, cuFloatComplex *mat) {
+        const int p, cuFloatComplex *mat)
+{
     int np, matRowIdx, matColIdx;
     int matSize = (2*p-1)*(2*p-1);
     cuFloatComplex matElem;
@@ -536,7 +537,7 @@ __host__ void rrCoaxTransMatsInit(const float wavNum, const float *vec, const in
     }
 }
 
-__device__ void coaxTransMatGen(cuFloatComplex *enlMat, const int p, cuFloatComplex *mat) 
+__host__ __device__ void coaxTransMatGen(cuFloatComplex *enlMat, const int p, cuFloatComplex *mat)
 {
     int np, n, m;
     int i, j;
@@ -628,12 +629,116 @@ __device__ void coaxTransMatGen(cuFloatComplex *enlMat, const int p, cuFloatComp
     }
 }
 
+__host__ __device__ void sparseCoaxTransMatGen(cuFloatComplex *enlMat, const int p, cuFloatComplex *sparseMat)
+{
+    int np, n, m, idx_s;
+    int i, j;
+    cuFloatComplex temp[6];
+    float tp[3];
+    int idx;
+    
+    for(m=0;m+1<=p-1;m++) {
+        for(np=m+1;np<=2*p-2-(m+1);np++) {
+            tp[0] = bCoeff(np,-m-1)/bCoeff(m+1,-m-1);
+            tp[1] = bCoeff(np+1,m)/bCoeff(m+1,-m-1);
+            i = NM2IDX0(np-1,m);
+            j = NM2IDX0(m,m);
+            idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+            temp[0] = enlMat[idx];
+            i = NM2IDX0(np+1,m);
+            j = NM2IDX0(m,m);
+            idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+            temp[1] = enlMat[idx];
+            temp[2] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),tp[0]*cuCimagf(temp[0]));
+            temp[3] = make_cuFloatComplex(tp[1]*cuCrealf(temp[1]),tp[1]*cuCimagf(temp[1]));
+            temp[4] = cuCsubf(temp[2],temp[3]);
+            i = NM2IDX0(np,m+1);
+            j = NM2IDX0(m+1,m+1);
+            idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+            enlMat[idx] = temp[4];
+        }
+    }
+    
+    for(m=0;m<=p-2;m++) {
+        for(n=m;n+1<=p-1;n++) {
+            for(np=m;np<=2*p-2-(n+1);np++) {
+                tp[0] = aCoeff(np-1,m)/aCoeff(n,m);
+                tp[1] = aCoeff(np,m)/aCoeff(n,m);
+                tp[2] = aCoeff(n-1,m)/aCoeff(n,m);
+                if(np-1>=m) {
+                    i = NM2IDX0(np-1,m);
+                    j = NM2IDX0(n,m);
+                    idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                    temp[0] = enlMat[idx];
+                } else {
+                    temp[0] = make_cuFloatComplex(0,0);
+                }
+                i = NM2IDX0(np+1,m);
+                j = NM2IDX0(n,m);
+                idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[1] = enlMat[idx];
+                if(n-1>=m) {
+                    i = NM2IDX0(np,m);
+                    j = NM2IDX0(n-1,m);
+                    idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                    temp[2] = enlMat[idx];
+                } else {
+                    temp[2] = make_cuFloatComplex(0,0);
+                }
+                temp[3] = make_cuFloatComplex(tp[0]*cuCrealf(temp[0]),tp[0]*cuCimagf(temp[0]));
+                temp[4] = make_cuFloatComplex(tp[1]*cuCrealf(temp[1]),tp[1]*cuCimagf(temp[1]));
+                temp[5] = make_cuFloatComplex(tp[2]*cuCrealf(temp[2]),tp[2]*cuCimagf(temp[2]));
+                i = NM2IDX0(np,m);
+                j = NM2IDX0(n+1,m);
+                idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                enlMat[idx] = cuCaddf(cuCsubf(temp[3],temp[4]),temp[5]);
+            }
+        }
+    }
+    
+    for(m=-1;m>=-(p-1);m--) {
+        for(np=abs(m);np<=p-1;np++) {
+            for(n=abs(m);n<=p-1;n++) {
+                i = NM2IDX0(np,abs(m));
+                j = NM2IDX0(n,abs(m));
+                idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[0] = enlMat[idx];
+                i = NM2IDX0(np,m);
+                j = NM2IDX0(n,m);
+                idx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                enlMat[idx] = temp[0];
+            }
+        }
+    }
+    
+    for(m=0;m<p;m++) {
+        idx_s = m*(2*m*m-(3+6*p)*m+1+6*(p+p*p))/6;
+        for(np=m;np<p;np++) {
+            i = NM2IDX0(np,m);
+            for(n=m;n<p;n++) {
+                j = NM2IDX0(n,m);
+                temp[0] = enlMat[IDXC0(i,j,(2*p-1)*(2*p-1))];
+                sparseMat[idx_s+IDXC0(np-m,n-m,p-m)] = temp[0];
+            }
+        }
+    }
+}
+
 __global__ void coaxTransMatsGen(cuFloatComplex *mats_enl, const int maxNum, const int p, 
         cuFloatComplex *mats)
 {
     int idx_x = threadIdx.x+blockIdx.x*blockDim.x;
     if(idx_x < maxNum) {
         coaxTransMatGen(&mats_enl[idx_x*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)],p,&mats[idx_x*p*p*p*p]);
+    }
+}
+
+__global__ void sparseCoaxTransMatsGen(cuFloatComplex *enlMat, const int num, const int p, 
+        cuFloatComplex *sparseMat)
+{
+    int idx_x = threadIdx.x+blockIdx.x*blockDim.x;
+    if(idx_x < num) {
+        sparseCoaxTransMatGen(&enlMat[idx_x*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)],p,&sparseMat[idx_x*(p*(2*p*p+3*p+1)/6)]);
     }
 }
 
@@ -671,18 +776,24 @@ int genRRCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
 __host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *sparseMat)
 {
+    printf("RR sparse: \n");
     //compute the number of matrices that can be allocated each time on the GPU
-    size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*p*p*p+p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex), 
+    size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*p*p*p+p*(2*p*p+3*p+1)/6)*2*sizeof(cuFloatComplex), 
             totalMem, freeMem;
     CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
-    int numMatsPerAlloc = freeMem/matMem, numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
-    int restNumVec = numVec; //the remaining number of vectors not processed
+    printf("Total memory: %fGB, free memory: %fGB, matrix memory: %f\n",((float)totalMem)/(1024*1024*1024),
+            ((float)freeMem)/(1024*1024*1024),(float)matMem/(1024*1024*1024));
+    int numMatsPerAlloc = floor((float)freeMem/matMem*0.8), numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
+    printf("numGen: %d\n",numGen);
+    
+    int restNumVec; //the remaining number of vectors not processed
     cuFloatComplex *enlMat_h, *denseMat_d, *enlMat_d, *sparseMat_d; //pointers for host and device memory
     
     //iterate through all blocks
     for(int i=0;i<numGen;i++) {
         //update the rest number of vectors to be processed
-        restNumVec-=i*numMatsPerAlloc;
+        restNumVec = numVec-i*numMatsPerAlloc;
+        printf("Rest number of translations: %d\n",restNumVec);
         
         //tell if the rest number of vectors is smaller than numMatsPerAlloc
         if(restNumVec>=numMatsPerAlloc) {
@@ -703,12 +814,19 @@ __host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const
             CUDA_CALL(cudaMalloc(&denseMat_d,numMatsPerAlloc*p*p*p*p*sizeof(cuFloatComplex)));
             CUDA_CALL(cudaMalloc(&sparseMat_d,numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
             
+            CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+            printf("Total memory: %fGB, free memory: %fGB\n",((float)totalMem)/(1024*1024*1024),
+                    ((float)freeMem)/(1024*1024*1024));
+            
             //copy initialized enlarged matrices from host to device
             CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
                     ,cudaMemcpyHostToDevice));
+            free(enlMat_h);
             
             //update coaxial translation matrices and copy them to the host
             coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numMatsPerAlloc,p,denseMat_d);
+            CUDA_CALL(cudaFree(enlMat_d));
+            
             getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
@@ -734,17 +852,20 @@ __host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const
             //copy initialized enlarged matrices from host to device
             CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,restNumVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
                     ,cudaMemcpyHostToDevice));
+            free(enlMat_h);
             
             //update coaxial translation matrices and copy them to the host
             coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,restNumVec,p,denseMat_d);
+            CUDA_CALL(cudaFree(enlMat_d));
+            
             getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumVec,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*restNumVec,cudaMemcpyDeviceToHost));
         }
         
-        free(enlMat_h);
-        CUDA_CALL(cudaFree(enlMat_d));
+        
+        
         CUDA_CALL(cudaFree(denseMat_d));
         CUDA_CALL(cudaFree(sparseMat_d));
         
@@ -763,6 +884,7 @@ int genSSCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
 __host__ int genSSSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *sparseMat)
 {
+    printf("SS sparse: \n");
     HOST_CALL(genRRSparseCoaxTransMat(wavNum,vec,numVec,p,sparseMat));
     return EXIT_SUCCESS;
 }
@@ -833,18 +955,24 @@ int genSRCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
 __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *sparseMat)
 {
+    printf("SR sparse: \n");
     //compute the number of matrices that can be allocated each time on the GPU
     size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*p*p*p+p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex), 
             totalMem, freeMem;
     CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+    printf("Total memory: %fGB, free memory: %fGB, matrix memory: %f\n",((float)totalMem)/(1024*1024*1024),
+            ((float)freeMem)/(1024*1024*1024),(float)matMem/(1024*1024*1024));
     int numMatsPerAlloc = freeMem/matMem, numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
-    int restNumVec = numVec; //the remaining number of vectors not processed
+    printf("numGen: %d\n",numGen);
+    
+    int restNumVec; //the remaining number of vectors not processed
     cuFloatComplex *enlMat_h, *denseMat_d, *enlMat_d, *sparseMat_d; //pointers for host and device memory
     
     //iterate through all blocks
     for(int i=0;i<numGen;i++) {
         //update the rest number of vectors to be processed
-        restNumVec-=i*numMatsPerAlloc;
+        restNumVec = numVec-i*numMatsPerAlloc;
+        printf("Rest number of translations: %d\n",restNumVec);
         
         //tell if the rest number of vectors is smaller than numMatsPerAlloc
         if(restNumVec>=numMatsPerAlloc) {
@@ -865,12 +993,19 @@ __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const
             CUDA_CALL(cudaMalloc(&denseMat_d,numMatsPerAlloc*p*p*p*p*sizeof(cuFloatComplex)));
             CUDA_CALL(cudaMalloc(&sparseMat_d,numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
             
+            CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+            printf("Total memory: %fGB, free memory: %fGB\n",((float)totalMem)/(1024*1024*1024),
+                    ((float)freeMem)/(1024*1024*1024));
+            
             //copy initialized enlarged matrices from host to device
             CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
                     ,cudaMemcpyHostToDevice));
+            free(enlMat_h);
             
             //update coaxial translation matrices and copy them to the host
             coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numMatsPerAlloc,p,denseMat_d);
+            CUDA_CALL(cudaFree(enlMat_d));
+            
             getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
@@ -896,17 +1031,19 @@ __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const
             //copy initialized enlarged matrices from host to device
             CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,restNumVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
                     ,cudaMemcpyHostToDevice));
+            free(enlMat_h);
             
             //update coaxial translation matrices and copy them to the host
             coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,restNumVec,p,denseMat_d);
+            CUDA_CALL(cudaFree(enlMat_d));
+            
             getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumVec,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*restNumVec,cudaMemcpyDeviceToHost));
         }
         
-        free(enlMat_h);
-        CUDA_CALL(cudaFree(enlMat_d));
+        
         CUDA_CALL(cudaFree(denseMat_d));
         CUDA_CALL(cudaFree(sparseMat_d));
         
@@ -945,10 +1082,10 @@ __host__ void rotMatsInit(const rotAng *rotAngle, const int numAng, const int p,
     }
 }
 
-__device__ void rotMatGen(const rotAng rotAngle, const int p, float *H,  
+__host__ __device__ void rotMatGen(const rotAng rotAngle, const int p, float *H,  
         cuFloatComplex *rotMat)
 {
-    int np,n, mp, m, i, j, matIdx;
+    int np, n, mp, m, i, j, matIdx;
     float temp[6];
     cuFloatComplex z;
     for(m=0;m+1<=p-1;m++) {
@@ -1022,12 +1159,89 @@ __device__ void rotMatGen(const rotAng rotAngle, const int p, float *H,
     }
 }
 
-__global__ void rotMatsGen(const rotAng *rotAng, const int numRot, const int p, 
-        float *H_enl,cuFloatComplex *rotMat)
+__host__ __device__ void sparseRotMatGen(const rotAng rotAngle, const int p, float *H,  
+        cuFloatComplex *sparseRotMat)
+{
+    int n, mp, m, i, j, matIdx, idx_s;
+    float temp[6];
+    cuFloatComplex z;
+    
+    //Process the matrix H
+    for(m=0;m+1<=p-1;m++) {
+        for(n=m+1;n<=2*p-2-(m+1);n++) {
+            for(mp=-n;mp<=n;mp++) {
+                //printf("n=%d,mp=%d,m=%d\n",n,mp,m);
+                temp[0] = 0.5*bCoeff(n+1,-mp-1)/bCoeff(n+1,m)*(1-cos(rotAngle.beta));
+                temp[1] = 0.5*bCoeff(n+1,mp-1)/bCoeff(n+1,m)*(1+cos(rotAngle.beta));
+                temp[2] = aCoeff(n,mp)/bCoeff(n+1,m)*sin(rotAngle.beta);
+                i = NM2IDX0(n+1,mp+1);
+                j = NM2IDX0(n+1,m);
+                matIdx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[3] = H[matIdx];
+                i = NM2IDX0(n+1,mp-1);
+                j = NM2IDX0(n+1,m);
+                matIdx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[4] = H[matIdx];
+                i = NM2IDX0(n+1,mp);
+                j = NM2IDX0(n+1,m);
+                matIdx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[5] = H[matIdx];
+                i = NM2IDX0(n,mp);
+                j = NM2IDX0(n,m+1);
+                matIdx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                H[matIdx] = temp[0]*temp[3]-temp[1]*temp[4]-temp[2]*temp[5];
+            }
+        }
+    }
+    
+    for(m=-1;m>=-(p-1);m--) {
+        for(n=abs(m);n<=p-1;n++) {
+            for(mp=-n;mp<=n;mp++) {
+                i = NM2IDX0(n,-mp);
+                j = NM2IDX0(n,-m);
+                matIdx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[0] = H[matIdx];
+                i = NM2IDX0(n,mp);
+                j = NM2IDX0(n,m);
+                matIdx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                H[matIdx] = temp[0];
+            }
+        }
+    }
+    
+    for(n=0;n<p;n++) {
+        idx_s = n*(4*n*n-1)/3; //starting index in the sparse matrix
+        for(mp=-n;mp<=n;mp++) {
+            i = NM2IDX0(n,mp);
+            for(m=-n;m<=n;m++) {
+                j = NM2IDX0(n,m);
+                matIdx = IDXC0(i,j,(2*p-1)*(2*p-1));
+                temp[0] = H[matIdx];
+                z = cuCmulf(cplxExp(m*rotAngle.alpha),cplxExp(-mp*rotAngle.gamma));
+                z = make_cuFloatComplex(cuCrealf(z)*temp[0],cuCimagf(z)*temp[0]);
+                matIdx = IDXC0(mp+n,m+n,2*n+1); //index in the sub-matrix of the sparse matrix
+                sparseRotMat[idx_s+matIdx] = z;
+            }
+        }
+    }
+    
+}
+
+__global__ void rotMatsGen(const rotAng *rotAngle, const int numRot, const int p, 
+        float *H_enl, cuFloatComplex *rotMat)
 {
     int idx = threadIdx.x+blockIdx.x*blockDim.x;
     if(idx < numRot) {
-        rotMatGen(rotAng[idx],p,&H_enl[idx*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)],&rotMat[idx*p*p*p*p]);
+        rotMatGen(rotAngle[idx],p,&H_enl[idx*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)],&rotMat[idx*p*p*p*p]);
+    }
+}
+
+__global__ void sparseRotMatsGen(const rotAng *rotAngle, const int numRot, const int p, 
+        float *H_enl, cuFloatComplex *sparseRotMat)
+{
+    int idx = threadIdx.x+blockIdx.x*blockDim.x;
+    if(idx < numRot) {
+        sparseRotMatGen(rotAngle[idx],p,&H_enl[idx*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)],&sparseRotMat[idx*(p*(4*p*p-1)/3)]);
     }
 }
 
@@ -1073,14 +1287,22 @@ int genRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatCom
 
 __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatComplex *sparseMat)
 {
+    printf("Rot sparse: \n");
     //compute the memory required for each sparse rotation matrix
-    size_t matMem = (2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)+(p*p*p*p+p*(4*p*p-1)/3)*sizeof(cuFloatComplex), 
-            totalMem, freeMem;
+    size_t matMem = (2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)+(p*p*p*p+p*(4*p*p-1)/3+(2*p-1)*(2*p-1))*sizeof(cuFloatComplex)
+            +sizeof(rotAng), totalMem, freeMem;
+    
     //get gpu memory information
     CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+    printf("Total memory: %fGB, free memory: %fGB, matrix memory: %f\n",((float)totalMem)/(1024*1024*1024),
+            ((float)freeMem)/(1024*1024*1024),(float)matMem/(1024*1024*1024));
     //compute the number of generations
-    int numMatsPerAlloc = freeMem/matMem, numGen = (numRot+numMatsPerAlloc-1)/numMatsPerAlloc;
-    int restNumRot = numRot; //the remaining number of rotations to be processed
+    int numMatsPerAlloc = floor((float)freeMem/matMem), numGen = (numRot+numMatsPerAlloc-1)/numMatsPerAlloc;
+    printf("numGen: %d\n",numGen);
+    
+    int restNumRot; //the remaining number of rotations to be processed
+    
+    printf("numMatsPerAlloc: %d\n",numMatsPerAlloc);
     
     //allocate memory
     rotAng *rotAngle_d;
@@ -1090,7 +1312,8 @@ __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const in
     //iterate through the generations
     for(int i=0;i<numGen;i++) {
         //update the rest number of vectors to be processed
-        restNumRot-=i*numMatsPerAlloc;
+        restNumRot = numRot-i*numMatsPerAlloc;
+        printf("Rest number of angles: %d\n",restNumRot);
         
         //tell if the rest number of vectors is smaller than numMatsPerAlloc
         if(restNumRot>=numMatsPerAlloc) {
@@ -1100,8 +1323,7 @@ __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const in
                     cudaMemcpyHostToDevice));
             
             //allocate memory and initialize the matrices
-            enlMat_h = (float*)malloc(numMatsPerAlloc*(2*p-1)*(2*p-1)
-                    *(2*p-1)*(2*p-1)*sizeof(float));
+            enlMat_h = (float*)malloc(numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float));
             rotMatsInit(&rotAngle[i*numMatsPerAlloc],numMatsPerAlloc,p,enlMat_h);
             
             //compute the number of blocks per grid
@@ -1118,9 +1340,17 @@ __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const in
             //copy initialized enlarged matrices from host to device
             CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)
                     ,cudaMemcpyHostToDevice));
+            free(enlMat_h);
             
             //update rotation matrices and copy them to the host
             rotMatsGen<<<gridStruct,blockStruct>>>(rotAngle_d,numMatsPerAlloc,p,enlMat_d,denseMat_d);
+            CUDA_CALL(cudaFree(rotAngle_d));
+            CUDA_CALL(cudaFree(enlMat_d));
+            
+            CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+            printf("Total memory: %fGB, free memory: %fGB.\n",((float)totalMem)/(1024*1024*1024),
+                ((float)freeMem)/(1024*1024*1024));
+            
             getSparseMatsFromRotMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(4*p*p-1)/3)],sparseMat_d,
@@ -1150,18 +1380,24 @@ __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const in
             //copy initialized enlarged matrices from host to device
             CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,restNumRot*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)
                     ,cudaMemcpyHostToDevice));
+            free(enlMat_h);
             
             //update rotation matrices and copy them to the host
             rotMatsGen<<<gridStruct,blockStruct>>>(rotAngle_d,restNumRot,p,enlMat_d,denseMat_d);
+            CUDA_CALL(cudaFree(rotAngle_d));
+            CUDA_CALL(cudaFree(enlMat_d));
+            
+            CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
+            printf("Total memory: %fGB, free memory: %fGB.\n",((float)totalMem)/(1024*1024*1024),
+                ((float)freeMem)/(1024*1024*1024));
+            
             getSparseMatsFromRotMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumRot,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(4*p*p-1)/3)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(4*p*p-1)/3)*restNumRot,cudaMemcpyDeviceToHost));
         }
         
-        free(enlMat_h);
-        CUDA_CALL(cudaFree(rotAngle_d));
-        CUDA_CALL(cudaFree(enlMat_d));
+        //release memory for dense and sparse matrices
         CUDA_CALL(cudaFree(denseMat_d));
         CUDA_CALL(cudaFree(sparseMat_d));
         
@@ -1763,9 +1999,9 @@ __global__ void cuMatsVecsMul_rcr(const cuFloatComplex *rotMat1, const cuFloatCo
     }
 }
 
-//generate the rotation and coaxial translation matrices
+//generate the sparse rotation and coaxial translation matrices
 int genOctree(const char *filename, const float wavNum, const int s, octree *oct)
-{
+{   
     //pointer to points and elements
     cartCoord_d *pt;
     triElem *elem;
@@ -1783,7 +2019,7 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
     
     //number of points and elements
     int numPt, numElem, p;
-    double eps = 0.01;
+    double eps = 0.05;
     //find the number of points and elements and allocate memory
     findNum(filename,&numPt,&numElem);
     
@@ -1808,6 +2044,7 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
     oct->coaxMat_ss = (cuFloatComplex**)malloc((oct->lmax-oct->lmin)*sizeof(cuFloatComplex*));
     oct->rotMat2_ss = (cuFloatComplex**)malloc((oct->lmax-oct->lmin)*sizeof(cuFloatComplex*));
     
+    printf("Upward pass: \n");
     //generate matrices of the upward pass
     for(int l=oct->lmax;l>=oct->lmin+1;l--) {
         //compute the truncation number p at level l
@@ -1815,20 +2052,21 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
         printf("l = %d, p = %d\n",l,p);
         printf("Number of boxes: %d\n",(oct->fmmLevelSet[l-oct->lmin])[0]);
         
-        //allocate memory for matrices of each level
-        rotMat1 = (cuFloatComplex*)malloc(p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]
+        //allocate host memory for sparse matrices of each level
+        rotMat1 = (cuFloatComplex*)malloc((p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]
                 *sizeof(cuFloatComplex));
-        coaxMat = (cuFloatComplex*)malloc(p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]
+        coaxMat = (cuFloatComplex*)malloc((p*(2*p*p+3*p+1)/6)*(oct->fmmLevelSet[l-oct->lmin])[0]
                 *sizeof(cuFloatComplex));
-        rotMat2 = (cuFloatComplex*)malloc(p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]
+        rotMat2 = (cuFloatComplex*)malloc((p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]
                 *sizeof(cuFloatComplex));
         
+        //allocate device memory for sparse matrices of each level
         CUDA_CALL(cudaMalloc((void**)&oct->rotMat1_ss[l-(oct->lmin+1)],
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
+                (p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
         CUDA_CALL(cudaMalloc((void**)&oct->coaxMat_ss[l-(oct->lmin+1)],
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
+                (p*(2*p*p+3*p+1)/6)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
         CUDA_CALL(cudaMalloc((void**)&oct->rotMat2_ss[l-(oct->lmin+1)],
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
+                (p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
         
         //allocate memory for translation vectors at level l
         transVec = (cartCoord*)malloc((oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cartCoord));
@@ -1858,24 +2096,24 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
             
             coaxTransVec[i] = sphTemp.r;
             
+            //angle 2 is in the reverse direction of angle 1 
             ang2[i].alpha = ang1[i].gamma;
             ang2[i].gamma = ang1[i].alpha;
             ang2[i].beta = ang1[i].beta;
         }
         
         //generate rotation and coaxial translation matrices on the host memory
-        HOST_CALL(genRotMats(ang1,(oct->fmmLevelSet[l-oct->lmin])[0],p,rotMat1));
-        HOST_CALL(genSSCoaxTransMat(wavNum,coaxTransVec,(oct->fmmLevelSet[l-oct->lmin])[0],
-                p,coaxMat));
-        HOST_CALL(genRotMats(ang2,(oct->fmmLevelSet[l-oct->lmin])[0],p,rotMat2));
+        HOST_CALL(genSparseRotMats(ang1,(oct->fmmLevelSet[l-oct->lmin])[0],p,rotMat1));
+        HOST_CALL(genSSSparseCoaxTransMat(wavNum,coaxTransVec,(oct->fmmLevelSet[l-oct->lmin])[0],p,coaxMat));
+        HOST_CALL(genSparseRotMats(ang2,(oct->fmmLevelSet[l-oct->lmin])[0],p,rotMat2));
         
         //copy matrices from host memory to device memory
         CUDA_CALL(cudaMemcpy(oct->rotMat1_ss[l-(oct->lmin+1)],rotMat1,
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         CUDA_CALL(cudaMemcpy(oct->coaxMat_ss[l-(oct->lmin+1)],coaxMat,
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(2*p*p+3*p+1)/6)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         CUDA_CALL(cudaMemcpy(oct->rotMat2_ss[l-(oct->lmin+1)],rotMat2,
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         
         //release memory
         free(rotMat1);
@@ -1900,20 +2138,29 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
     oct->coaxMat_sr = (cuFloatComplex**)malloc((oct->lmax-oct->lmin+1)*sizeof(cuFloatComplex*));
     oct->rotMat2_sr = (cuFloatComplex**)malloc((oct->lmax-oct->lmin+1)*sizeof(cuFloatComplex*));
     
+    printf("Downward pass, SR: \n");
     //go down from level lmin to level lmax
     for(int l=oct->lmin;l<=oct->lmax;l++) {
         //compute the truncation number p at level l
         p = truncNum(wavNum,eps,1.5,pow(2,-l)*oct->d);
+        printf("l = %d, p = %d\n",l,p);
+        
         numSR = 0;
         idx = 0; //index for the translation vector
         for(int i=0;i<(oct->fmmLevelSet[l-oct->lmin])[0];i++) {
             numSR += (fmmSRNumSet[l-oct->lmin])[i];
         }
+        printf("numSR: %d\n",numSR);
         
-        //allocate memory for rotation matrices and coaxial translation matrices
-        CUDA_CALL(cudaMalloc((void**)&oct->rotMat1_sr[l-oct->lmin],p*p*p*p*numSR*sizeof(cuFloatComplex)));
-        CUDA_CALL(cudaMalloc((void**)&oct->coaxMat_sr[l-oct->lmin],p*p*p*p*numSR*sizeof(cuFloatComplex)));
-        CUDA_CALL(cudaMalloc((void**)&oct->rotMat2_sr[l-oct->lmin],p*p*p*p*numSR*sizeof(cuFloatComplex)));
+        //allocate host memory for rotation matrices and coaxial translation matrices
+        rotMat1 = (cuFloatComplex*)malloc((p*(4*p*p-1)/3)*numSR*sizeof(cuFloatComplex));
+        coaxMat = (cuFloatComplex*)malloc((p*(2*p*p+3*p+1)/6)*numSR*sizeof(cuFloatComplex));
+        rotMat2 = (cuFloatComplex*)malloc((p*(4*p*p-1)/3)*numSR*sizeof(cuFloatComplex));
+        
+        //allocate device memory for sparse rotation matrices and coaxial translation matrices
+        CUDA_CALL(cudaMalloc((void**)&oct->rotMat1_sr[l-oct->lmin],(p*(4*p*p-1)/3)*numSR*sizeof(cuFloatComplex)));
+        CUDA_CALL(cudaMalloc((void**)&oct->coaxMat_sr[l-oct->lmin],(p*(2*p*p+3*p+1)/6)*numSR*sizeof(cuFloatComplex)));
+        CUDA_CALL(cudaMalloc((void**)&oct->rotMat2_sr[l-oct->lmin],(p*(4*p*p-1)/3)*numSR*sizeof(cuFloatComplex)));
         
         //allocate memory for translation vectors and angles and coaxial translation vectors
         transVec = (cartCoord*)malloc(numSR*sizeof(cartCoord));
@@ -1921,11 +2168,6 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
         ang1 = (rotAng*)malloc(numSR*sizeof(rotAng));
         coaxTransVec = (float*)malloc(numSR*sizeof(float));
         ang2 = (rotAng*)malloc(numSR*sizeof(rotAng));
-        
-        //allocate host memory for rotation matrices and coaxial translation matrices
-        rotMat1 = (cuFloatComplex*)malloc(p*p*p*p*numSR*sizeof(cuFloatComplex));
-        coaxMat = (cuFloatComplex*)malloc(p*p*p*p*numSR*sizeof(cuFloatComplex));
-        rotMat2 = (cuFloatComplex*)malloc(p*p*p*p*numSR*sizeof(cuFloatComplex));
         
         //compute the translation vectors at level l
         for(int i=0;i<(oct->fmmLevelSet[l-oct->lmin])[0];i++) {
@@ -1959,16 +2201,16 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
             }
         }
         
-        HOST_CALL(genRotMats(ang1,numSR,p,rotMat1));
-        HOST_CALL(genSRCoaxTransMat(wavNum,coaxTransVec,numSR,p,coaxMat));
-        HOST_CALL(genRotMats(ang2,numSR,p,rotMat2));
+        HOST_CALL(genSparseRotMats(ang1,numSR,p,rotMat1));
+        HOST_CALL(genSRSparseCoaxTransMat(wavNum,coaxTransVec,numSR,p,coaxMat));
+        HOST_CALL(genSparseRotMats(ang2,numSR,p,rotMat2));
         
         CUDA_CALL(cudaMemcpy(oct->rotMat1_sr[l-oct->lmin],rotMat1,
-                p*p*p*p*numSR*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(4*p*p-1)/3)*numSR*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         CUDA_CALL(cudaMemcpy(oct->coaxMat_sr[l-oct->lmin],coaxMat,
-                p*p*p*p*numSR*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(2*p*p+3*p+1)/6)*numSR*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         CUDA_CALL(cudaMemcpy(oct->rotMat2_sr[l-oct->lmin],rotMat2,
-                p*p*p*p*numSR*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(4*p*p-1)/3)*numSR*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         
         //release memory
         free(rotMat1);
@@ -1988,17 +2230,24 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
     oct->coaxMat_rr = (cuFloatComplex**)malloc((oct->lmax-oct->lmin)*sizeof(cuFloatComplex*));
     oct->rotMat2_rr = (cuFloatComplex**)malloc((oct->lmax-oct->lmin)*sizeof(cuFloatComplex*));
     
+    printf("Downward pass, RR: \n");
     for(int l=oct->lmin+1;l<=oct->lmax;l++) {
         //determine the truncation number
         p = truncNum(wavNum,eps,1.5,pow(2,-l)*oct->d);
+        printf("l = %d, p = %d\n",l,p);
+        
+        //allocate host memory for rotation matrices and coaxial translation matrices
+        rotMat1 = (cuFloatComplex*)malloc((p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex));
+        coaxMat = (cuFloatComplex*)malloc((p*(2*p*p+3*p+1)/6)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex));
+        rotMat2 = (cuFloatComplex*)malloc((p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex));
         
         //allocate memory for rotation matrices and coaxial translation matrices
         CUDA_CALL(cudaMalloc((void**)&oct->rotMat1_rr[l-(oct->lmin+1)],
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
+                (p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
         CUDA_CALL(cudaMalloc((void**)&oct->coaxMat_rr[l-(oct->lmin+1)],
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
+                (p*(2*p*p+3*p+1)/6)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
         CUDA_CALL(cudaMalloc((void**)&oct->rotMat2_rr[l-(oct->lmin+1)],
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
+                (p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex)));
         
         //allocate memory for translation vectors and angles and coaxial translation vectors
         transVec = (cartCoord*)malloc((oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cartCoord));
@@ -2006,11 +2255,6 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
         ang1 = (rotAng*)malloc((oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(rotAng));
         coaxTransVec = (float*)malloc((oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(float));
         ang2 = (rotAng*)malloc((oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(rotAng));
-        
-        //allocate host memory for rotation matrices and coaxial translation matrices
-        rotMat1 = (cuFloatComplex*)malloc(p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex));
-        coaxMat = (cuFloatComplex*)malloc(p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex));
-        rotMat2 = (cuFloatComplex*)malloc(p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex));
         
         //compute the translation vectors
         for(int i=0;i<(oct->fmmLevelSet[l-oct->lmin])[0];i++) {
@@ -2040,18 +2284,17 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
         }
         
         //generate rotation and coaxial translation matrices on the host memory
-        HOST_CALL(genRotMats(ang1,(oct->fmmLevelSet[l-oct->lmin])[0],p,rotMat1));
-        HOST_CALL(genSSCoaxTransMat(wavNum,coaxTransVec,(oct->fmmLevelSet[l-oct->lmin])[0],
-                p,coaxMat));
-        HOST_CALL(genRotMats(ang2,(oct->fmmLevelSet[l-oct->lmin])[0],p,rotMat2));
+        HOST_CALL(genSparseRotMats(ang1,(oct->fmmLevelSet[l-oct->lmin])[0],p,rotMat1));
+        HOST_CALL(genRRSparseCoaxTransMat(wavNum,coaxTransVec,(oct->fmmLevelSet[l-oct->lmin])[0],p,coaxMat));
+        HOST_CALL(genSparseRotMats(ang2,(oct->fmmLevelSet[l-oct->lmin])[0],p,rotMat2));
         
         //copy matrices from host memory to device memory
         CUDA_CALL(cudaMemcpy(oct->rotMat1_rr[l-(oct->lmin+1)],rotMat1,
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         CUDA_CALL(cudaMemcpy(oct->coaxMat_rr[l-(oct->lmin+1)],coaxMat,
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(2*p*p+3*p+1)/6)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         CUDA_CALL(cudaMemcpy(oct->rotMat2_rr[l-(oct->lmin+1)],rotMat2,
-                p*p*p*p*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+                (p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
         
         //release memory
         free(rotMat1);
