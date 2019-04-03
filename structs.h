@@ -19,6 +19,10 @@ extern "C" {
 #endif
     
 #include <cuComplex.h>
+    
+#ifndef PI
+#define PI 3.1415926535897932f
+#endif
 
 #define IDXC0(row,column,stride) ((column)*(stride)+(row))
 
@@ -51,11 +55,24 @@ extern "C" {
         float phi;
     };
     
+    struct sphCoord_double
+    {
+        double r;
+        double theta;
+        double phi;
+    };
+    
     struct rotAng
     {
         float alpha;
         float beta;
         float gamma;
+    };
+    
+    struct transIdx
+    {
+        int coaxIdx;
+        int rotIdx;
     };
     
     typedef struct triElem triElem;
@@ -66,7 +83,11 @@ extern "C" {
     
     typedef struct sphCoord sphCoord;
     
+    typedef struct sphCoord_double sphCoord_d;
+    
     typedef struct rotAng rotAng;
+    
+    typedef struct transIdx transIdx;
     
     struct octree
     {
@@ -76,18 +97,22 @@ extern "C" {
         double d;
         cartCoord_d pt_min;
         
-        //sparse matrices for ss, sr and rr translations
-        cuFloatComplex **rotMat1_ss;
-        cuFloatComplex **coaxMat_ss;
-        cuFloatComplex **rotMat2_ss;
+        //sparse matrices for ss, sr and rr translations, saved on host memory
+        cuFloatComplex *rotMat1;
+        cuFloatComplex *rotMat2;
         
-        cuFloatComplex **rotMat1_sr;
-        cuFloatComplex **coaxMat_sr;
-        cuFloatComplex **rotMat2_sr;
+        cuFloatComplex *srCoaxMat;
+        cuFloatComplex *rrCoaxMat;
         
-        cuFloatComplex **rotMat1_rr;
-        cuFloatComplex **coaxMat_rr;
-        cuFloatComplex **rotMat2_rr;
+        float *srCoaxTransVec;
+        int numSRCoaxTransVec;
+        float *rrCoaxTransVec;
+        int numRRCoaxTransVec;
+        rotAng *ang;
+        int numRotAng;
+        
+        float eps;
+        float maxWavNum;
     };
     
     typedef struct octree octree;
@@ -109,6 +134,10 @@ extern "C" {
     __host__ __device__ cartCoord normalize(const cartCoord x);
 
     __host__ __device__ sphCoord cart2sph(const cartCoord s);
+    
+    __host__ __device__ sphCoord_d cart_d2sph_d(const cartCoord_d s);
+    
+    __host__ __device__ sphCoord sphCoord_d2sphCoord(const sphCoord_d s);
 
     __host__ __device__ cartCoord sph2cart(const sphCoord s);
     
@@ -117,6 +146,24 @@ extern "C" {
     __host__ __device__ cartCoord_d triCentroid_d(const cartCoord_d nod[3]);
     
     __host__ __device__ cartCoord cartCoord_d2cartCoord(const cartCoord_d s);
+    
+    __host__ __device__ cartCoord_d cartCoord2cartCoord_d(const cartCoord s);
+    
+    __host__ void printCartCoordArray_d(const cartCoord_d *arr, const int num);
+    
+    __host__ void printCartCoordArray(const cartCoord *arr, const int num);
+    
+    __host__ void printSphCoordArray(const sphCoord *arr, const int num);
+    
+    __host__ void printRotAngArray(const rotAng *angle, const int numAng);
+    
+    __host__ bool equalRotArrays(const rotAng *ang1, const rotAng *ang2, const int numAng);
+    
+    //__host__ void sortRotArray(rotAng *angle, const int numRot);
+    
+    __host__ void bubbleSort(float *arr, const int n);
+    
+    __host__ void sortRotArray(rotAng *ang, const int numRot, const float eps);
 
 #ifdef __cplusplus
 }

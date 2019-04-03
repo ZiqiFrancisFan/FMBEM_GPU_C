@@ -43,7 +43,10 @@ _a < _b ? _a : _b; })
 #endif
 
 #ifndef abs
-#define abs(x)  ( (x<0) ? -x : x )
+#define abs(x) \
+({ __typeof__ (x) _x = (x); \
+__typeof__ (x) _y = 0; \
+_x < _y ? -_x : _x; })
 #endif
 
 #ifndef IDXC0
@@ -291,6 +294,20 @@ __host__ int testSparseRotMatsGen(const rotAng *rotAngle, const int numRot, cons
 
 __host__ int testSparseCoaxTransMatsGen(const float wavNum, const float *transVec, const int numTransVec, 
         const int p);
+
+//generate SR related rotation angles and coaxial translation vectors of level l
+__host__ void genSRCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min, 
+        float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng);
+
+__host__ void genSSCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min,
+        float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng);
+
+__host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min, 
+        float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng);
+
+__host__ void initOctree(octree *oct);
+
+__host__ int genOctree(const char *filename, const float wavNum, const int s, octree *oct);
 
 #endif /* NUMERICAL_H */
 

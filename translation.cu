@@ -776,24 +776,19 @@ int genRRCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
 __host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *sparseMat)
 {
-    printf("RR sparse: \n");
     //compute the number of matrices that can be allocated each time on the GPU
-    size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*p*p*p+p*(2*p*p+3*p+1)/6)*2*sizeof(cuFloatComplex), 
+    size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex), 
             totalMem, freeMem;
     CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
-    printf("Total memory: %fGB, free memory: %fGB, matrix memory: %f\n",((float)totalMem)/(1024*1024*1024),
-            ((float)freeMem)/(1024*1024*1024),(float)matMem/(1024*1024*1024));
-    int numMatsPerAlloc = floor((float)freeMem/matMem*0.8), numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
-    printf("numGen: %d\n",numGen);
+    int numMatsPerAlloc = floor((float)freeMem*0.95/matMem), numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
     
     int restNumVec; //the remaining number of vectors not processed
-    cuFloatComplex *enlMat_h, *denseMat_d, *enlMat_d, *sparseMat_d; //pointers for host and device memory
+    cuFloatComplex *enlMat_h, *enlMat_d, *sparseMat_d; //pointers for host and device memory
     
     //iterate through all blocks
     for(int i=0;i<numGen;i++) {
         //update the rest number of vectors to be processed
         restNumVec = numVec-i*numMatsPerAlloc;
-        printf("Rest number of translations: %d\n",restNumVec);
         
         //tell if the rest number of vectors is smaller than numMatsPerAlloc
         if(restNumVec>=numMatsPerAlloc) {
@@ -811,12 +806,7 @@ __host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const
             
             //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
             CUDA_CALL(cudaMalloc(&enlMat_d,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
-            CUDA_CALL(cudaMalloc(&denseMat_d,numMatsPerAlloc*p*p*p*p*sizeof(cuFloatComplex)));
             CUDA_CALL(cudaMalloc(&sparseMat_d,numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
-            
-            CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
-            printf("Total memory: %fGB, free memory: %fGB\n",((float)totalMem)/(1024*1024*1024),
-                    ((float)freeMem)/(1024*1024*1024));
             
             //copy initialized enlarged matrices from host to device
             CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
@@ -824,10 +814,8 @@ __host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const
             free(enlMat_h);
             
             //update coaxial translation matrices and copy them to the host
-            coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numMatsPerAlloc,p,denseMat_d);
+            sparseCoaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numMatsPerAlloc,p,sparseMat_d);
             CUDA_CALL(cudaFree(enlMat_d));
-            
-            getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*numMatsPerAlloc,cudaMemcpyDeviceToHost));
@@ -846,7 +834,6 @@ __host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const
             
             //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
             CUDA_CALL(cudaMalloc(&enlMat_d,restNumVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
-            CUDA_CALL(cudaMalloc(&denseMat_d,restNumVec*p*p*p*p*sizeof(cuFloatComplex)));
             CUDA_CALL(cudaMalloc(&sparseMat_d,restNumVec*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
             
             //copy initialized enlarged matrices from host to device
@@ -855,18 +842,13 @@ __host__ int genRRSparseCoaxTransMat(const float wavNum, const float *vec, const
             free(enlMat_h);
             
             //update coaxial translation matrices and copy them to the host
-            coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,restNumVec,p,denseMat_d);
+            sparseCoaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,restNumVec,p,sparseMat_d);
             CUDA_CALL(cudaFree(enlMat_d));
-            
-            getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumVec,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*restNumVec,cudaMemcpyDeviceToHost));
         }
         
-        
-        
-        CUDA_CALL(cudaFree(denseMat_d));
         CUDA_CALL(cudaFree(sparseMat_d));
         
     }
@@ -884,7 +866,6 @@ int genSSCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
 __host__ int genSSSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *sparseMat)
 {
-    printf("SS sparse: \n");
     HOST_CALL(genRRSparseCoaxTransMat(wavNum,vec,numVec,p,sparseMat));
     return EXIT_SUCCESS;
 }
@@ -955,24 +936,18 @@ int genSRCoaxTransMat(const float wavNum, const float *vec, const int numVec, co
 __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const int numVec, const int p, 
         cuFloatComplex *sparseMat)
 {
-    printf("SR sparse: \n");
     //compute the number of matrices that can be allocated each time on the GPU
-    size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*p*p*p+p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex), 
+    size_t matMem = ((2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)+p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex), 
             totalMem, freeMem;
     CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
-    printf("Total memory: %fGB, free memory: %fGB, matrix memory: %f\n",((float)totalMem)/(1024*1024*1024),
-            ((float)freeMem)/(1024*1024*1024),(float)matMem/(1024*1024*1024));
-    int numMatsPerAlloc = freeMem/matMem, numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
-    printf("numGen: %d\n",numGen);
-    
+    int numMatsPerAlloc = floor((float)freeMem*0.95/matMem), numGen = (numVec+numMatsPerAlloc-1)/numMatsPerAlloc;
     int restNumVec; //the remaining number of vectors not processed
-    cuFloatComplex *enlMat_h, *denseMat_d, *enlMat_d, *sparseMat_d; //pointers for host and device memory
+    cuFloatComplex *enlMat_h, *enlMat_d, *sparseMat_d; //pointers for host and device memory
     
     //iterate through all blocks
     for(int i=0;i<numGen;i++) {
         //update the rest number of vectors to be processed
         restNumVec = numVec-i*numMatsPerAlloc;
-        printf("Rest number of translations: %d\n",restNumVec);
         
         //tell if the rest number of vectors is smaller than numMatsPerAlloc
         if(restNumVec>=numMatsPerAlloc) {
@@ -990,12 +965,7 @@ __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const
             
             //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
             CUDA_CALL(cudaMalloc(&enlMat_d,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
-            CUDA_CALL(cudaMalloc(&denseMat_d,numMatsPerAlloc*p*p*p*p*sizeof(cuFloatComplex)));
             CUDA_CALL(cudaMalloc(&sparseMat_d,numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
-            
-            CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
-            printf("Total memory: %fGB, free memory: %fGB\n",((float)totalMem)/(1024*1024*1024),
-                    ((float)freeMem)/(1024*1024*1024));
             
             //copy initialized enlarged matrices from host to device
             CUDA_CALL(cudaMemcpy(enlMat_d,enlMat_h,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)
@@ -1003,10 +973,8 @@ __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const
             free(enlMat_h);
             
             //update coaxial translation matrices and copy them to the host
-            coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numMatsPerAlloc,p,denseMat_d);
+            sparseCoaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,numMatsPerAlloc,p,sparseMat_d);
             CUDA_CALL(cudaFree(enlMat_d));
-            
-            getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*numMatsPerAlloc,cudaMemcpyDeviceToHost));
@@ -1025,7 +993,6 @@ __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const
             
             //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
             CUDA_CALL(cudaMalloc(&enlMat_d,restNumVec*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(cuFloatComplex)));
-            CUDA_CALL(cudaMalloc(&denseMat_d,restNumVec*p*p*p*p*sizeof(cuFloatComplex)));
             CUDA_CALL(cudaMalloc(&sparseMat_d,restNumVec*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex)));
             
             //copy initialized enlarged matrices from host to device
@@ -1034,17 +1001,13 @@ __host__ int genSRSparseCoaxTransMat(const float wavNum, const float *vec, const
             free(enlMat_h);
             
             //update coaxial translation matrices and copy them to the host
-            coaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,restNumVec,p,denseMat_d);
+            sparseCoaxTransMatsGen<<<gridStruct,blockStruct>>>(enlMat_d,restNumVec,p,sparseMat_d);
             CUDA_CALL(cudaFree(enlMat_d));
-            
-            getSparseMatsFromCoaxTransMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumVec,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(2*p*p+3*p+1)/6)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(2*p*p+3*p+1)/6)*restNumVec,cudaMemcpyDeviceToHost));
         }
         
-        
-        CUDA_CALL(cudaFree(denseMat_d));
         CUDA_CALL(cudaFree(sparseMat_d));
         
     }
@@ -1287,33 +1250,26 @@ int genRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatCom
 
 __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const int p, cuFloatComplex *sparseMat)
 {
-    printf("Rot sparse: \n");
     //compute the memory required for each sparse rotation matrix
-    size_t matMem = (2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)+(p*p*p*p+p*(4*p*p-1)/3+(2*p-1)*(2*p-1))*sizeof(cuFloatComplex)
+    size_t matMem = (2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)+(p*(4*p*p-1)/3+(2*p-1)*(2*p-1))*sizeof(cuFloatComplex)
             +sizeof(rotAng), totalMem, freeMem;
     
     //get gpu memory information
     CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
-    printf("Total memory: %fGB, free memory: %fGB, matrix memory: %f\n",((float)totalMem)/(1024*1024*1024),
-            ((float)freeMem)/(1024*1024*1024),(float)matMem/(1024*1024*1024));
+    
     //compute the number of generations
-    int numMatsPerAlloc = floor((float)freeMem/matMem), numGen = (numRot+numMatsPerAlloc-1)/numMatsPerAlloc;
-    printf("numGen: %d\n",numGen);
-    
+    int numMatsPerAlloc = floor((float)freeMem*0.95/matMem), numGen = (numRot+numMatsPerAlloc-1)/numMatsPerAlloc;
     int restNumRot; //the remaining number of rotations to be processed
-    
-    printf("numMatsPerAlloc: %d\n",numMatsPerAlloc);
     
     //allocate memory
     rotAng *rotAngle_d;
     float *enlMat_h, *enlMat_d;
-    cuFloatComplex *denseMat_d, *sparseMat_d; //pointers for host and device memory
+    cuFloatComplex *sparseMat_d; //pointers for host and device memory
     
     //iterate through the generations
     for(int i=0;i<numGen;i++) {
         //update the rest number of vectors to be processed
         restNumRot = numRot-i*numMatsPerAlloc;
-        printf("Rest number of angles: %d\n",restNumRot);
         
         //tell if the rest number of vectors is smaller than numMatsPerAlloc
         if(restNumRot>=numMatsPerAlloc) {
@@ -1334,7 +1290,6 @@ __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const in
             
             //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
             CUDA_CALL(cudaMalloc(&enlMat_d,numMatsPerAlloc*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)));
-            CUDA_CALL(cudaMalloc(&denseMat_d,numMatsPerAlloc*p*p*p*p*sizeof(cuFloatComplex)));
             CUDA_CALL(cudaMalloc(&sparseMat_d,numMatsPerAlloc*(p*(4*p*p-1)/3)*sizeof(cuFloatComplex)));
             
             //copy initialized enlarged matrices from host to device
@@ -1343,15 +1298,9 @@ __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const in
             free(enlMat_h);
             
             //update rotation matrices and copy them to the host
-            rotMatsGen<<<gridStruct,blockStruct>>>(rotAngle_d,numMatsPerAlloc,p,enlMat_d,denseMat_d);
+            sparseRotMatsGen<<<gridStruct,blockStruct>>>(rotAngle_d,numMatsPerAlloc,p,enlMat_d,sparseMat_d);
             CUDA_CALL(cudaFree(rotAngle_d));
             CUDA_CALL(cudaFree(enlMat_d));
-            
-            CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
-            printf("Total memory: %fGB, free memory: %fGB.\n",((float)totalMem)/(1024*1024*1024),
-                ((float)freeMem)/(1024*1024*1024));
-            
-            getSparseMatsFromRotMats<<<gridStruct,blockStruct>>>(denseMat_d,numMatsPerAlloc,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(4*p*p-1)/3)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(4*p*p-1)/3)*numMatsPerAlloc,cudaMemcpyDeviceToHost));
@@ -1374,7 +1323,6 @@ __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const in
             
             //allocate memory of the enlarged matrices, dense matrices and sparse matrices on the device
             CUDA_CALL(cudaMalloc(&enlMat_d,restNumRot*(2*p-1)*(2*p-1)*(2*p-1)*(2*p-1)*sizeof(float)));
-            CUDA_CALL(cudaMalloc(&denseMat_d,restNumRot*p*p*p*p*sizeof(cuFloatComplex)));
             CUDA_CALL(cudaMalloc(&sparseMat_d,restNumRot*(p*(4*p*p-1)/3)*sizeof(cuFloatComplex)));
             
             //copy initialized enlarged matrices from host to device
@@ -1383,22 +1331,15 @@ __host__ int genSparseRotMats(const rotAng *rotAngle, const int numRot, const in
             free(enlMat_h);
             
             //update rotation matrices and copy them to the host
-            rotMatsGen<<<gridStruct,blockStruct>>>(rotAngle_d,restNumRot,p,enlMat_d,denseMat_d);
+            sparseRotMatsGen<<<gridStruct,blockStruct>>>(rotAngle_d,restNumRot,p,enlMat_d,sparseMat_d);
             CUDA_CALL(cudaFree(rotAngle_d));
             CUDA_CALL(cudaFree(enlMat_d));
-            
-            CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
-            printf("Total memory: %fGB, free memory: %fGB.\n",((float)totalMem)/(1024*1024*1024),
-                ((float)freeMem)/(1024*1024*1024));
-            
-            getSparseMatsFromRotMats<<<gridStruct,blockStruct>>>(denseMat_d,restNumRot,p,sparseMat_d);
             
             CUDA_CALL(cudaMemcpy(&sparseMat[i*numMatsPerAlloc*(p*(4*p*p-1)/3)],sparseMat_d,
                     sizeof(cuFloatComplex)*(p*(4*p*p-1)/3)*restNumRot,cudaMemcpyDeviceToHost));
         }
         
         //release memory for dense and sparse matrices
-        CUDA_CALL(cudaFree(denseMat_d));
         CUDA_CALL(cudaFree(sparseMat_d));
         
     }
@@ -1999,6 +1940,7 @@ __global__ void cuMatsVecsMul_rcr(const cuFloatComplex *rotMat1, const cuFloatCo
     }
 }
 
+/*
 //generate the sparse rotation and coaxial translation matrices
 int genOctree(const char *filename, const float wavNum, const int s, octree *oct)
 {   
@@ -2038,6 +1980,8 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
     //Generate the octree
     oct->fmmLevelSet = (int**)malloc((oct->lmax-oct->lmin+1)*sizeof(int*));
     FMMLevelSet(srcBoxSet,oct->lmax,oct->fmmLevelSet);
+    printf("FMM level sets: \n");
+    printFMMLevelSet(oct->fmmLevelSet,oct->lmax);
     
     //Allocate memory for rotation and coaxial translation matrices of the ss translation
     oct->rotMat1_ss = (cuFloatComplex**)malloc((oct->lmax-oct->lmin)*sizeof(cuFloatComplex*));
@@ -2051,6 +1995,9 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
         p = truncNum(wavNum,eps,1.5,pow(2,-l)*oct->d);
         printf("l = %d, p = %d\n",l,p);
         printf("Number of boxes: %d\n",(oct->fmmLevelSet[l-oct->lmin])[0]);
+        float memNeed = (float)(p*(4*p*p-1)/3*2+p*(2*p*p+3*p+1)/6)*(oct->fmmLevelSet[l-oct->lmin])[0]
+            *sizeof(cuFloatComplex)/(1024*1024*1024.0);
+        printf("Memory need for SS translations at the current level is: %fGB\n",memNeed);
         
         //allocate host memory for sparse matrices of each level
         rotMat1 = (cuFloatComplex*)malloc((p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]
@@ -2126,12 +2073,27 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
     }
     
     //generate matrices of the download pass
-    int set[27*27+1]; //used to save I4 sets
+    int set[27*27+1], intSet[27*27+1]; //used to save I4 sets
     
     //number of sr translations
     int **fmmSRNumSet = (int**)malloc((oct->lmax-oct->lmin+1)*sizeof(int*));
-    FMMLevelSetNumSR(oct->fmmLevelSet,oct->lmax,fmmSRNumSet);
     int numSR, idx;
+    FMMLevelSetNumSR(oct->fmmLevelSet,oct->lmax,fmmSRNumSet);
+    printf("SR sets: \n");
+    for(int l=oct->lmin;l<=oct->lmax;l++) {
+        p = truncNum(wavNum,eps,1.5,pow(2,-l)*oct->d);
+        numSR = 0;
+        for(int i=0;i<(oct->fmmLevelSet[l-oct->lmin])[0];i++) {
+            numSR+=fmmSRNumSet[l-oct->lmin][i];
+            //printf("%d ",fmmSRNumSet[l-oct->lmin][i]);
+        }
+        printf("Total number of sr translations at level %d: %d\n",l,numSR);
+        float memNeed = (float)(p*(4*p*p-1)/3*2+p*(2*p*p+3*p+1)/6)*numSR*sizeof(cuFloatComplex)/(1024*1024*1024.0);
+        printf("Memory need for SR translations at the current level is: %fGB\n",memNeed);
+        //printf("\n");
+    }
+    printf("Number of SR translations: \n");
+    printLevelSetNumSR(fmmSRNumSet,oct->fmmLevelSet,oct->lmax);
     
     //allocate memory for rotation and coaxial translation matrices of the ss translation
     oct->rotMat1_sr = (cuFloatComplex**)malloc((oct->lmax-oct->lmin+1)*sizeof(cuFloatComplex*));
@@ -2173,13 +2135,14 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
         for(int i=0;i<(oct->fmmLevelSet[l-oct->lmin])[0];i++) {
             //get the I4 set of the current box
             I4((oct->fmmLevelSet[l-oct->lmin])[i+1],l,set);
+            intersection(set,oct->fmmLevelSet[l-oct->lmin],intSet);
             
             //get the center of the current box
             cartTemp[1] = boxCenter((oct->fmmLevelSet[l-oct->lmin])[i+1],l);
             cartTemp[1] = descale(cartTemp[1],oct->pt_min,oct->d);
-            for(int j=0;j<set[0];j++) {
+            for(int j=0;j<intSet[0];j++) {
                 //get the center of the starting box
-                cartTemp[0] = boxCenter(set[j+1],l);
+                cartTemp[0] = boxCenter(intSet[j+1],l);
                 cartTemp[0] = descale(cartTemp[0],oct->pt_min,oct->d);
                 
                 //translation vector
@@ -2235,6 +2198,9 @@ int genOctree(const char *filename, const float wavNum, const int s, octree *oct
         //determine the truncation number
         p = truncNum(wavNum,eps,1.5,pow(2,-l)*oct->d);
         printf("l = %d, p = %d\n",l,p);
+        float memNeed = (float)(p*(4*p*p-1)/3*2+p*(2*p*p+3*p+1)/6)*(oct->fmmLevelSet[l-oct->lmin])[0]
+            *sizeof(cuFloatComplex)/(1024*1024*1024.0);
+        printf("Memory need for RR translations at the current level is: %fGB\n",memNeed);
         
         //allocate host memory for rotation matrices and coaxial translation matrices
         rotMat1 = (cuFloatComplex*)malloc((p*(4*p*p-1)/3)*(oct->fmmLevelSet[l-oct->lmin])[0]*sizeof(cuFloatComplex));
@@ -2329,6 +2295,7 @@ int destroyOctree(octree *oct, const int lmax)
     free(oct->fmmLevelSet);
     return EXIT_SUCCESS;
 }
+ */
 
 __host__ int testSparseRotMatsGen(const rotAng *rotAngle, const int numRot, const int p)
 {
@@ -2415,7 +2382,7 @@ __host__ int testSparseCoaxTransMatsGen(const float wavNum, const float *transVe
     
     //generate sparse coaxial translation matrices
     cuFloatComplex *sparseMat_h = (cuFloatComplex*)malloc(numTransVec*(p*(2*p*p+3*p+1)/6)*sizeof(cuFloatComplex));
-    HOST_CALL(genSSSparseCoaxTransMat(wavNum,transVec,numTransVec,p,sparseMat_h));
+    HOST_CALL(genRRSparseCoaxTransMat(wavNum,transVec,numTransVec,p,sparseMat_h));
     
     //allocate device memory to save the sparse rotation matrices
     cuFloatComplex *sparseMat_d;
@@ -2438,7 +2405,7 @@ __host__ int testSparseCoaxTransMatsGen(const float wavNum, const float *transVe
     }
     
     cuFloatComplex *denseMat_h = (cuFloatComplex*)malloc(numTransVec*p*p*p*p*sizeof(cuFloatComplex));
-    HOST_CALL(genSSCoaxTransMat(wavNum,transVec,numTransVec,p,denseMat_h));
+    HOST_CALL(genRRCoaxTransMat(wavNum,transVec,numTransVec,p,denseMat_h));
     cuFloatComplex *denseMat_d;
     CUDA_CALL(cudaMalloc(&denseMat_d,numTransVec*p*p*p*p*sizeof(cuFloatComplex)));
     CUDA_CALL(cudaMemcpy(denseMat_d,denseMat_h,numTransVec*p*p*p*p*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
@@ -2463,7 +2430,580 @@ __host__ int testSparseCoaxTransMatsGen(const float wavNum, const float *transVe
     return EXIT_SUCCESS;
 }
 
+__host__ void genSRCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min, 
+        float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng)
+{
+    //set both numbers of vectors and angles to zero
+    int idx, numVec = 0, numRot = 0;
+    int set[8*27+1];
+    cartCoord_d boxCtr[2], vec;
+    sphCoord coord_sph;
+    rotAng *tempAng, angle;
+    float *tempVec, t, eps = 0.00001*d;
+    bool flag;
+    
+    if(l==2) {
+        //allocate memory for angles and vectors
+        tempAng = (rotAng*)malloc((64-27)*64*sizeof(rotAng));
+        tempVec = (float*)malloc((64-27)*64*sizeof(float));
+        //The level is 2
+        for(idx=0;idx<(int)pow(8,l);idx++) {
+            //the coordinate of the terminating point
+            boxCtr[1] = boxCenter(idx,l);
+            boxCtr[1] = descale(boxCtr[1],pt_min,d);
+            //get the I4 set of the current index
+            I4(idx,l,set);
+            for(int i=0;i<set[0];i++) {
+                //the coordinate of the starting point
+                boxCtr[0] = boxCenter(set[i+1],l);
+                boxCtr[0] = descale(boxCtr[0],pt_min,d);
+                vec = cartCoordSub_d(boxCtr[1],boxCtr[0]);
+                coord_sph = cart2sph(cartCoord_d2cartCoord(vec));
+                angle.alpha = coord_sph.phi;
+                angle.beta = coord_sph.theta;
+                angle.gamma = 0;
+                t = coord_sph.r;
+                //printf("t: %f\n",t);
+                
+                //update tempVec
+                if(numVec==0) {
+                    tempVec[numVec++] = t;
+                } else {
+                    flag = false; //not in existing vectors
+                    for(int j=0;j<numVec;j++) {
+                        //tell if t is in exising vectors
+                        //printf("abs(tempVec[j]-t): %f\n",abs(tempVec[j]-t));
+                        if(abs(tempVec[j]-t)<eps) {
+                            flag = true;
+                            break;
+                        }
+                    }
+                    if(!flag) {
+                        tempVec[numVec++] = t;
+                    }
+                }
+                
+                //update tempAng
+                if(numRot==0) {
+                    tempAng[numRot++] = angle;
+                } else {
+                    flag = false;
+                    for(int j=0;j<numRot;j++) {
+                        //tell if rotAng is in existing rotation angles
+                        if(abs(angle.alpha-tempAng[j].alpha)<eps && abs(angle.beta-tempAng[j].beta)<eps) {
+                            flag = true;
+                            break;
+                        }
+                    }
+                    if(!flag) {
+                        tempAng[numRot++] = angle;
+                    }
+                }
+            }
+            
+        }
+    } else {
+        //allocate memory for angles and vectors
+        tempVec = (float*)malloc(208*8*sizeof(float));
+        tempAng = (rotAng*)malloc(208*8*sizeof(rotAng));
+        
+        //find the first box with the largest number of sr translations
+        for(idx=0;idx<(int)pow(8,l);idx++) {
+            I4(idx,l,set);
+            if(set[0]==189) {
+                break;
+            }
+        }
+        //printf("idx: %d\n",idx);
+        
+        //get the parent box of the current box
+        int prntIdx = parent(idx);
+        
+        //iterate through all child boxes of the parent box
+        for(int childIdx=0;childIdx<8;childIdx++) {
+            //get the index of the child box
+            idx = child(prntIdx,childIdx);
+            
+            //get the terminating point
+            boxCtr[1] = boxCenter(idx,l);
+            boxCtr[1] = descale(boxCtr[1],pt_min,d);
+            
+            //get the I4 set of the current box
+            I4(idx,l,set);
+            for(int i=0;i<set[0];i++) {
+                //get the starting point
+                boxCtr[0] = boxCenter(set[i+1],l);
+                boxCtr[0] = descale(boxCtr[0],pt_min,d);
+                
+                //vector from the starting point to the terminating point
+                vec = cartCoordSub_d(boxCtr[1],boxCtr[0]);
+                coord_sph = cart2sph(cartCoord_d2cartCoord(vec));
+                angle.alpha = coord_sph.phi;
+                angle.beta = coord_sph.theta;
+                angle.gamma = 0;
+                t = coord_sph.r;
+                
+                //update tempVec
+                if(numVec==0) {
+                    tempVec[numVec++] = t;
+                } else {
+                    flag = false; //not in existing vectors
+                    for(int j=0;j<numVec;j++) {
+                        //tell if t is in exising vectors
+                        if(abs(tempVec[j]-t)<eps) {
+                            flag = true;
+                            break;
+                        }
+                    }
+                    if(!flag) {
+                        tempVec[numVec++] = t;
+                    }
+                }
+                
+                //update tempAng
+                if(numRot==0) {
+                    tempAng[numRot++] = angle;
+                } else {
+                    flag = false;
+                    for(int j=0;j<numRot;j++) {
+                        //tell if rotAng is in existing rotation angles
+                        if(abs(angle.alpha-tempAng[j].alpha)<eps && abs(angle.beta-tempAng[j].beta)<eps) {
+                            flag = true;
+                            break;
+                        }
+                    }
+                    if(!flag) {
+                        tempAng[numRot++] = angle;
+                    }
+                }
+            }
+        }
+    }
+    
+    //update the number of vectors and the number of rotations at level l
+    *pNumVec = numVec;
+    *pNumRotAng = numRot;
+    *pVec = (float*)malloc(numVec*sizeof(float));
+    *pRotAngle = (rotAng*)malloc(numRot*sizeof(rotAng));
+    for(int i=0;i<numVec;i++) {
+        (*pVec)[i] = tempVec[i];
+    }
+    for(int i=0;i<numRot;i++) {
+        (*pRotAngle)[i] = tempAng[i];
+    }
+}
 
+__host__ void genSSCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min, 
+        float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng)
+{
+    int prntIdx = parent(0), idx, numVec, numRot;
+    bool flag;
+    cartCoord_d boxCtr[2], vec;
+    rotAng angle, *tempAng;
+    float t, *tempVec, eps = 0.00001*d;
+    sphCoord coord_sph;
+    tempAng = (rotAng*)malloc(8*sizeof(rotAng));
+    tempVec = (float*)malloc(8*sizeof(float));
+    boxCtr[1] = boxCenter(prntIdx,l-1);
+    boxCtr[1] = descale(boxCtr[1],pt_min,d);
+    for(int childIdx=0;childIdx<8;childIdx++) {
+        idx = child(prntIdx,childIdx);
+        boxCtr[0] = boxCenter(idx,l);
+        boxCtr[0] = descale(boxCtr[0],pt_min,d);
+        
+        vec = cartCoordSub_d(boxCtr[1],boxCtr[0]);
+        
+        coord_sph = cart2sph(cartCoord_d2cartCoord(vec));
+        angle.alpha = coord_sph.phi;
+        angle.beta = coord_sph.theta;
+        angle.gamma = 0;
+        t = coord_sph.r;
+        
+        if(numVec==0) {
+            tempVec[numVec++] = t;
+        } else {
+            flag = false; //not in existing vectors
+            for(int j=0;j<numVec;j++) {
+                //tell if t is in exising vectors
+                if(abs(tempVec[j]-t)<eps) {
+                    flag = true;
+                    break;
+                }
+            }
+            if(!flag) {
+                tempVec[numVec++] = t;
+            }
+        }
+
+        //update tempAng
+        if(numRot==0) {
+            tempAng[numRot++] = angle;
+        } else {
+            flag = false;
+            for(int j=0;j<numRot;j++) {
+                //tell if rotAng is in existing rotation angles
+                if(abs(angle.alpha-tempAng[j].alpha)<eps && abs(angle.beta-tempAng[j].beta)<eps) {
+                    flag = true;
+                    break;
+                }
+            }
+            if(!flag) {
+                tempAng[numRot++] = angle;
+            }
+        }
+    }
+    
+    *pNumVec = numVec;
+    *pNumRotAng = numRot;
+    
+    *pVec = (float*)malloc(numVec*sizeof(float));
+    for(int i=0;i<numVec;i++) {
+        (*pVec)[i] = tempVec[i];
+    }
+    *pRotAngle = (rotAng*)malloc(numRot*sizeof(rotAng));
+    for(int i=0;i<numRot;i++) {
+        (*pRotAngle)[i] = tempAng[i];
+    }
+    
+}
+
+__host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min, 
+        float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng)
+{
+    //l should be larger than lmin
+    
+    int prntIdx = parent(0), idx, numVec, numRot;
+    bool flag;
+    cartCoord_d boxCtr[2], vec;
+    rotAng angle, *tempAng;
+    float t, *tempVec, eps = 0.00001*d;
+    sphCoord coord_sph;
+    tempAng = (rotAng*)malloc(8*sizeof(rotAng));
+    tempVec = (float*)malloc(8*sizeof(float));
+    boxCtr[0] = boxCenter(prntIdx,l-1);
+    boxCtr[0] = descale(boxCtr[0],pt_min,d);
+    
+    for(int childIdx=0;childIdx<8;childIdx++) {
+        idx = child(prntIdx,childIdx);
+        boxCtr[1] = boxCenter(idx,l);
+        boxCtr[1] = descale(boxCtr[1],pt_min,d);
+        
+        vec = cartCoordSub_d(boxCtr[1],boxCtr[0]);
+        coord_sph = cart2sph(cartCoord_d2cartCoord(vec));
+        angle.alpha = coord_sph.phi;
+        angle.beta = coord_sph.theta;
+        angle.gamma = 0;
+        t = coord_sph.r;
+        
+        if(numVec==0) {
+            tempVec[numVec++] = t;
+        } else {
+            flag = false; //not in existing vectors
+            for(int j=0;j<numVec;j++) {
+                //tell if t is in exising vectors
+                if(abs(tempVec[j]-t)<eps) {
+                    flag = true;
+                    break;
+                }
+            }
+            if(!flag) {
+                tempVec[numVec++] = t;
+            }
+        }
+
+        //update tempAng
+        if(numRot==0) {
+            tempAng[numRot++] = angle;
+        } else {
+            flag = false;
+            for(int j=0;j<numRot;j++) {
+                //tell if rotAng is in existing rotation angles
+                if(abs(angle.alpha-tempAng[j].alpha)<eps && abs(angle.beta-tempAng[j].beta)<eps) {
+                    flag = true;
+                    break;
+                }
+            }
+            if(!flag) {
+                tempAng[numRot++] = angle;
+            }
+        }
+    }
+    
+    *pNumVec = numVec;
+    *pNumRotAng = numRot;
+    
+    *pVec = (float*)malloc(numVec*sizeof(float));
+    for(int i=0;i<numVec;i++) {
+        (*pVec)[i] = tempVec[i];
+    }
+    *pRotAngle = (rotAng*)malloc(numRot*sizeof(rotAng));
+    for(int i=0;i<numRot;i++) {
+        (*pRotAngle)[i] = tempAng[i];
+    }
+    
+}
+
+__host__ void initOctree(octree *oct)
+{
+    oct->lmin = 2;
+    
+    oct->numRotAng = 0;
+    oct->ang = NULL;
+    oct->rotMat1 = NULL;
+    oct->rotMat2 = NULL;
+    
+    oct->numRRCoaxTransVec = 0;
+    oct->rrCoaxTransVec = NULL;
+    oct->rrCoaxMat = NULL;
+    
+    oct->numSRCoaxTransVec = 0;
+    oct->srCoaxTransVec = NULL;
+    oct->srCoaxMat = NULL;
+    
+    oct->eps = 0.01;
+    oct->maxWavNum = 2*PI*20000/343.0f;
+}
+
+__host__ int genOctree(const char *filename, const float wavNum, const int s, octree *oct)
+{
+    //pointer to points and elements
+    cartCoord_d *pt;
+    triElem *elem;
+    
+    //number of points and elements
+    int numPt, numElem;
+    //find the number of points and elements and allocate memory
+    findNum(filename,&numPt,&numElem);
+    
+    //allocate memory for points and elements
+    pt = (cartCoord_d*)malloc(numPt*sizeof(cartCoord_d));
+    elem = (triElem*)malloc(numElem*sizeof(triElem));
+    
+    //read the obj file
+    HOST_CALL(readOBJ(filename,pt,elem));
+    
+    //boxes at the bottom level
+    int *srcBoxSet = (int*)malloc((numElem+1)*sizeof(int));
+    srcBoxes(pt,elem,numElem,s,srcBoxSet,&oct->lmax,&oct->d,&oct->pt_min);
+    int pmax = truncNum(oct->maxWavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
+    float epsilon = 0.000001*oct->d;
+    
+    
+    //generate sr rotation matrices
+    rotAng *ang;
+    float *srCoaxTransVec, *rrCoaxTransVec, *tempVec = NULL;
+    int numRot, numVec;
+    
+    bool flag;
+    
+    for(int l=oct->lmin;l<=oct->lmax;l++) {
+        //generate vectors and rotations at level l
+        genSRCoaxTransVecsRotAngles(l,oct->d,oct->pt_min,&srCoaxTransVec,&numVec,&ang,&numRot);
+        //no angles saved yet
+        if(oct->numRotAng==0) {
+            //allocate memory for angles and move the angles to the octree structure
+            oct->ang = (rotAng*)malloc(numRot*sizeof(rotAng));
+            for(int i=0;i<numRot;i++) {
+                oct->ang[i] = ang[i];
+            }
+            
+            //update the number of rotation angles
+            oct->numRotAng = numRot;
+        }
+        
+        //no vectors saved yet
+        if(oct->numSRCoaxTransVec==0) {
+            //allocate memory for sr coaxial translation vectors
+            oct->srCoaxTransVec = (float*)malloc(numVec*sizeof(float));
+            for(int i=0;i<numVec;i++) {
+                oct->srCoaxTransVec[i] = srCoaxTransVec[i];
+            }
+            oct->numSRCoaxTransVec = numVec;
+        } else {
+            //allocate memory for temporary vector array
+            tempVec = (float*)malloc((oct->numSRCoaxTransVec+numVec)*sizeof(float));
+            
+            //move all vectors in the array to the temporary array
+            for(int i=0;i<oct->numSRCoaxTransVec;i++) {
+                tempVec[i] = oct->srCoaxTransVec[i];
+            }
+            
+            //free the memory
+            free(oct->srCoaxTransVec);
+            
+            //tell one by one if the new vectors belong to the existing array
+            for(int i=0;i<numVec;i++) {
+                //assume that the new vector does not belong to the existing array
+                flag = false;
+                for(int j=0;j<oct->numSRCoaxTransVec;j++) {
+                    if(abs(srCoaxTransVec[i]-tempVec[j])<epsilon) {
+                        //the current new vector is in the old array
+                        flag = true;
+                        break;
+                    }
+                    if(!flag) {
+                        //push the vector into the vector array and increase the number of SR vectors
+                        tempVec[oct->numSRCoaxTransVec++] = srCoaxTransVec[i];
+                    }
+                }
+            }
+            
+            //allocate memory for sr translations
+            oct->srCoaxTransVec = (float*)malloc(oct->numSRCoaxTransVec*sizeof(float));
+            for(int i=0;i<oct->numSRCoaxTransVec;i++) {
+                oct->srCoaxTransVec[i] = tempVec[i];
+            }
+            free(tempVec);
+        }
+        free(srCoaxTransVec);
+        free(ang);
+    }
+    
+    //sort the rotation angles and the coaxial vectors
+    sortRotArray(oct->ang,oct->numRotAng,oct->eps);
+    bubbleSort(oct->srCoaxTransVec,oct->numSRCoaxTransVec);
+    
+    //generate rotation matrices, only generate one time for the largest p, unrelated to the wave number
+    if(oct->rotMat1==NULL) {
+        oct->rotMat1 = (cuFloatComplex*)malloc(oct->numRotAng*(pmax*(4*pmax*pmax-1)/3)*sizeof(cuFloatComplex));
+        HOST_CALL(genSparseRotMats(oct->ang,oct->numRotAng,pmax,oct->rotMat1));
+        
+        //generate rotMat2
+        ang = (rotAng*)malloc(oct->numRotAng*sizeof(rotAng));
+        for(int i=0;i<oct->numRotAng;i++) {
+            ang[i].alpha = oct->ang[i].gamma;
+            ang[i].beta = oct->ang[i].beta;
+            ang[i].gamma = oct->ang[i].alpha;
+        }
+        oct->rotMat2 = (cuFloatComplex*)malloc(oct->numRotAng*(pmax*(4*pmax*pmax-1)/3)*sizeof(cuFloatComplex));
+        HOST_CALL(genSparseRotMats(ang,oct->numRotAng,pmax,oct->rotMat2));
+        free(ang);
+    }
+    
+    //generate coaxial translation matrices; the largest matrices corresponding to the current wave number will be generated
+    if(oct->srCoaxMat!=NULL) {
+        free(oct->srCoaxMat);
+    }
+    pmax = truncNum(wavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
+    oct->srCoaxMat = (cuFloatComplex*)malloc(oct->numSRCoaxTransVec*(pmax*(2*pmax*pmax+3*pmax+1)/6)*sizeof(cuFloatComplex));
+    HOST_CALL(genSRSparseCoaxTransMat(wavNum,oct->srCoaxTransVec,oct->numSRCoaxTransVec,pmax,oct->srCoaxMat));
+    
+    //generate ss coaxial translations
+    for(int l=oct->lmax;l>oct->lmin;l--) {
+        genSSCoaxTransVecsRotAngles(l,oct->d,oct->pt_min,&rrCoaxTransVec,&numVec,&ang,&numRot);
+        
+        //no vectors saved yet
+        if(oct->numRRCoaxTransVec==0) {
+            //allocate memory for sr coaxial translation vectors
+            oct->rrCoaxTransVec = (float*)malloc(numVec*sizeof(float));
+            for(int i=0;i<numVec;i++) {
+                oct->rrCoaxTransVec[i] = rrCoaxTransVec[i];
+            }
+            oct->numRRCoaxTransVec = numVec;
+        } else {
+            //allocate memory for temporary vector array
+            tempVec = (float*)malloc((oct->numRRCoaxTransVec+numVec)*sizeof(float));
+            
+            //move all vectors in the array to the temporary array
+            for(int i=0;i<oct->numRRCoaxTransVec;i++) {
+                tempVec[i] = oct->rrCoaxTransVec[i];
+            }
+            
+            //free the memory
+            free(oct->rrCoaxTransVec);
+            
+            //tell one by one if the new vectors belong to the existing array
+            for(int i=0;i<numVec;i++) {
+                //assume that the new vector does not belong to the existing array
+                flag = false;
+                for(int j=0;j<oct->numRRCoaxTransVec;j++) {
+                    if(abs(rrCoaxTransVec[i]-tempVec[j])<epsilon) {
+                        //the current new vector is in the old array
+                        flag = true;
+                        break;
+                    }
+                    if(!flag) {
+                        //push the vector into the vector array and increase the number of SR vectors
+                        tempVec[oct->numRRCoaxTransVec++] = rrCoaxTransVec[i];
+                    }
+                }
+            }
+            
+            //allocate memory for rr/ss translations
+            oct->rrCoaxTransVec = (float*)malloc(oct->numRRCoaxTransVec*sizeof(float));
+            for(int i=0;i<oct->numRRCoaxTransVec;i++) {
+                oct->rrCoaxTransVec[i] = tempVec[i];
+            }
+            free(tempVec);
+        }
+        free(rrCoaxTransVec);
+        free(ang);
+    }
+    
+    //generate rr coaxial translations
+    for(int l=oct->lmin+1;l<=oct->lmax;l++) {
+        genRRCoaxTransVecsRotAngles(l,oct->d,oct->pt_min,&rrCoaxTransVec,&numVec,&ang,&numRot);
+        
+        //no vectors saved yet
+        if(oct->numRRCoaxTransVec==0) {
+            //allocate memory for sr coaxial translation vectors
+            oct->rrCoaxTransVec = (float*)malloc(numVec*sizeof(float));
+            for(int i=0;i<numVec;i++) {
+                oct->rrCoaxTransVec[i] = rrCoaxTransVec[i];
+            }
+            oct->numRRCoaxTransVec = numVec;
+        } else {
+            //allocate memory for temporary vector array
+            tempVec = (float*)malloc((oct->numRRCoaxTransVec+numVec)*sizeof(float));
+            
+            //move all vectors in the array to the temporary array
+            for(int i=0;i<oct->numRRCoaxTransVec;i++) {
+                tempVec[i] = oct->rrCoaxTransVec[i];
+            }
+            
+            //free the memory
+            free(oct->rrCoaxTransVec);
+            
+            //tell one by one if the new vectors belong to the existing array
+            for(int i=0;i<numVec;i++) {
+                //assume that the new vector does not belong to the existing array
+                flag = false;
+                for(int j=0;j<oct->numRRCoaxTransVec;j++) {
+                    if(abs(rrCoaxTransVec[i]-tempVec[j])<epsilon) {
+                        //the current new vector is in the old array
+                        flag = true;
+                        break;
+                    }
+                    if(!flag) {
+                        //push the vector into the vector array and increase the number of SR vectors
+                        tempVec[oct->numRRCoaxTransVec++] = rrCoaxTransVec[i];
+                    }
+                }
+            }
+            
+            //allocate memory for rr/ss translations
+            oct->rrCoaxTransVec = (float*)malloc(oct->numRRCoaxTransVec*sizeof(float));
+            for(int i=0;i<oct->numRRCoaxTransVec;i++) {
+                oct->rrCoaxTransVec[i] = tempVec[i];
+            }
+            free(tempVec);
+        }
+        free(rrCoaxTransVec);
+        free(ang);
+    }
+    
+    bubbleSort(oct->rrCoaxTransVec,oct->numRRCoaxTransVec);
+    //generate rr/ss coaxial translation matrices; the largest matrices corresponding to the current wave number will be generated
+    if(oct->rrCoaxMat!=NULL) {
+        free(oct->rrCoaxMat);
+    }
+    pmax = truncNum(wavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
+    oct->rrCoaxMat = (cuFloatComplex*)malloc(oct->numRRCoaxTransVec*(pmax*(2*pmax*pmax+3*pmax+1)/6)*sizeof(cuFloatComplex));
+    HOST_CALL(genRRSparseCoaxTransMat(wavNum,oct->rrCoaxTransVec,oct->numRRCoaxTransVec,pmax,oct->rrCoaxMat));
+    
+    
+    return EXIT_SUCCESS;
+}
 
 
 

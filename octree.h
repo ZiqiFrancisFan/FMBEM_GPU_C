@@ -92,6 +92,7 @@ extern "C" {
 
     void I3(const int num, const int l, int *set);
 
+    //applicable to levels larger than or equal to 2
     void I4(const int num, const int l, int *set);
 
     void orderArray(const int *a, const int num, int *ind);
@@ -131,8 +132,10 @@ extern "C" {
     int readOBJ(const char *filename, cartCoord_d *p, triElem *e);
     
     void FMMLevelSetNumSR(int **pSet, const int lmax, int **numSet);
-
-
+    
+    void printLevelSetNumSR(int **numSet, int **pSet, const int lmax);
+    
+    void printFMMLevelSet(int **pSet, const int lmax);
 
 #ifdef __cplusplus
 }

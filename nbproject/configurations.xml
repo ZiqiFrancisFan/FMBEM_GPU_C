@@ -3,7 +3,6 @@
   <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
     <df root="." name="0">
       <in>integral.cu</in>
-      <in>integral.h</in>
       <in>main.c</in>
       <in>octree.c</in>
       <in>structs.cu</in>
@@ -30,7 +29,9 @@
         <rebuildPropChanged>false</rebuildPropChanged>
       </toolsSet>
       <flagsDictionary>
-        <element flagsID="0" commonFlags="-std=c++11 -xc++ -std=c++11 -O3 -O3 -m64"/>
+        <element flagsID="0" commonFlags="-std=c++11 -O3"/>
+        <element flagsID="1" commonFlags="-std=c++11 -xc++ -std=c++11 -O3 -O3 -m64"/>
+        <element flagsID="2" commonFlags="-xc -std=c++11 -O3 -O3 -m64"/>
       </flagsDictionary>
       <codeAssistance>
       </codeAssistance>
@@ -40,7 +41,7 @@
           <buildCommand>${MAKE} -f makefile</buildCommand>
           <cleanCommand>${MAKE} -f makefile clean</cleanCommand>
           <executablePath></executablePath>
-          <ccTool>
+          <cTool>
             <incDir>
               <pElem>/usr/local/cuda/include</pElem>
               <pElem>/usr/local/cuda/include/crt</pElem>
@@ -48,19 +49,20 @@
               <pElem>.</pElem>
               <pElem>/usr/local/cuda/targets/x86_64-linux/include</pElem>
             </incDir>
-            <incFile>
-              <pElem>/usr/local/cuda/include/cuda_runtime.h</pElem>
-            </incFile>
             <preprocessorList>
-              <Elem>CUDA_DOUBLE_MATH_FUNCTIONS</Elem>
-              <Elem>__CUDACC_RDC__</Elem>
               <Elem>__CUDACC_VER_BUILD__=105</Elem>
               <Elem>__CUDACC_VER_MAJOR__=10</Elem>
               <Elem>__CUDACC_VER_MINOR__=1</Elem>
-              <Elem>__CUDACC__</Elem>
-              <Elem>__CUDA_ARCH__=610</Elem>
               <Elem>__NVCC__</Elem>
             </preprocessorList>
+          </cTool>
+          <ccTool>
+            <incDir>
+              <pElem>/usr/local/cuda/include</pElem>
+              <pElem>/usr/local/cuda/include/crt</pElem>
+              <pElem>/usr/include/python2.7</pElem>
+              <pElem>.</pElem>
+            </incDir>
           </ccTool>
         </makeTool>
         <preBuild>
@@ -68,18 +70,72 @@
           <preBuildCommand></preBuildCommand>
         </preBuild>
       </makefileType>
-      <item path="integral.cu" ex="false" tool="1" flavor2="0">
+      <item path="integral.cu" ex="false" tool="1" flavor2="4">
+        <ccTool>
+          <incDir>
+            <pElem>/usr/local/cuda/targets/x86_64-linux/include</pElem>
+          </incDir>
+          <incFile>
+            <pElem>/usr/local/cuda/include/cuda_runtime.h</pElem>
+          </incFile>
+          <preprocessorList>
+            <Elem>CUDA_DOUBLE_MATH_FUNCTIONS</Elem>
+            <Elem>__CUDACC_RDC__</Elem>
+            <Elem>__CUDACC_VER_BUILD__=105</Elem>
+            <Elem>__CUDACC_VER_MAJOR__=10</Elem>
+            <Elem>__CUDACC_VER_MINOR__=1</Elem>
+            <Elem>__CUDACC__</Elem>
+            <Elem>__CUDA_ARCH__=610</Elem>
+            <Elem>__NVCC__</Elem>
+          </preprocessorList>
+        </ccTool>
       </item>
-      <item path="integral.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="main.c" ex="false" tool="0" flavor2="2">
+      <item path="main.c" ex="false" tool="1" flavor2="8">
+        <ccTool flags="0">
+        </ccTool>
       </item>
       <item path="octree.c" ex="false" tool="0" flavor2="2">
+        <cTool flags="2">
+        </cTool>
       </item>
-      <item path="structs.cu" ex="false" tool="1" flavor2="0">
+      <item path="structs.cu" ex="false" tool="1" flavor2="4">
+        <ccTool>
+          <incDir>
+            <pElem>/usr/local/cuda/targets/x86_64-linux/include</pElem>
+          </incDir>
+          <incFile>
+            <pElem>/usr/local/cuda/include/cuda_runtime.h</pElem>
+          </incFile>
+          <preprocessorList>
+            <Elem>CUDA_DOUBLE_MATH_FUNCTIONS</Elem>
+            <Elem>__CUDACC_RDC__</Elem>
+            <Elem>__CUDACC_VER_BUILD__=105</Elem>
+            <Elem>__CUDACC_VER_MAJOR__=10</Elem>
+            <Elem>__CUDACC_VER_MINOR__=1</Elem>
+            <Elem>__CUDACC__</Elem>
+            <Elem>__CUDA_ARCH__=610</Elem>
+            <Elem>__NVCC__</Elem>
+          </preprocessorList>
+        </ccTool>
       </item>
       <item path="translation.cu" ex="false" tool="1" flavor2="8">
-        <ccTool flags="0">
+        <ccTool flags="1">
+          <incDir>
+            <pElem>/usr/local/cuda/targets/x86_64-linux/include</pElem>
+          </incDir>
+          <incFile>
+            <pElem>/usr/local/cuda/include/cuda_runtime.h</pElem>
+          </incFile>
+          <preprocessorList>
+            <Elem>CUDA_DOUBLE_MATH_FUNCTIONS</Elem>
+            <Elem>__CUDACC_RDC__</Elem>
+            <Elem>__CUDACC_VER_BUILD__=105</Elem>
+            <Elem>__CUDACC_VER_MAJOR__=10</Elem>
+            <Elem>__CUDACC_VER_MINOR__=1</Elem>
+            <Elem>__CUDACC__</Elem>
+            <Elem>__CUDA_ARCH__=610</Elem>
+            <Elem>__NVCC__</Elem>
+          </preprocessorList>
         </ccTool>
       </item>
     </conf>

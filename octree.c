@@ -769,7 +769,7 @@ void srcBoxes(const cartCoord_d *pnts, const triElem *elems, const int numElems,
         nod[2] = pnts[elems[i].node[2]];
         pnts_ctr[i] = triCentroid_d(nod);
     }
-    findBoundingCube(pnts_ctr,numElems,0.1,pnts_bnd,D);
+    findBoundingCube(pnts_ctr,numElems,0.01,pnts_bnd,D);
     *pnt_min = pnts_bnd[0];
     scalePnts(pnts_ctr,numElems,pnts_bnd[0],*D,pnts_scaled);
     *lmax = deterLmax(pnts_scaled,numElems,s);
@@ -904,23 +904,45 @@ void FMMLevelSet(const int *btmLvl, const int lmax, int **pSet)
     //printf("allocated memory.\n");
     pSet[lmax-lmin] = (int*)malloc((btmLvl[0]+1)*sizeof(int));
     copySet(btmLvl,pSet[lmax-lmin]);
+    sortSet(pSet[lmax-lmin]);
     for(l=lmax-1;l>=lmin;l--) {
         prntLevelSet(pSet[l+1-lmin],l+1,set_temp);
         pSet[l-lmin] = (int*)malloc((set_temp[0]+1)*sizeof(int));
         copySet(set_temp,pSet[l-lmin]);
+        sortSet(pSet[l-lmin]);
     }
     //printf("completed FMMLvlSet_e\n");
 }
 
 void FMMLevelSetNumSR(int **pSet, const int lmax, int **numSet)
 {
-    int set[27*27+1];
+    int set[8*27+1], intSet[8*27+1];
     for(int l=2;l<=lmax;l++) {
         numSet[l-2] = (int*)malloc(((pSet[l-2])[0])*sizeof(int));
         for(int i=0;i<(pSet[l-2])[0];i++) {
             I4((pSet[l-2])[i+1],l,set);
-            (numSet[l-2])[i] = set[0];
+            intersection(set,pSet[l-2],intSet);
+            (numSet[l-2])[i] = intSet[0];
         }
+    }
+}
+
+void printLevelSetNumSR(int **numSet, int **pSet, const int lmax)
+{
+    for(int l=2;l<=lmax;l++) {
+        printf("Level %d, number of boxes: %d\n",l,pSet[l-2][0]);
+        for(int i=0;i<pSet[l-2][0];i++) {
+            printf("%d ",numSet[l-2][i]);
+        }
+        printf("\n");
+    }
+}
+
+void printFMMLevelSet(int **pSet, const int lmax)
+{
+    for(int l=2;l<=lmax;l++) {
+        printf("Level %d, number of boxes: %d\n",l,pSet[l-2][0]);
+        printSet(pSet[l-2]);
     }
 }
 

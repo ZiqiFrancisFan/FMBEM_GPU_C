@@ -9,6 +9,8 @@
       <in>octree.h</in>
       <in>structs.cu</in>
       <in>structs.h</in>
+      <in>test</in>
+      <in>testOctree</in>
       <in>translation.cu</in>
       <in>translation.h</in>
     </df>
