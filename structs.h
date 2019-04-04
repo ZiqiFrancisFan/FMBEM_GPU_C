@@ -155,6 +155,8 @@ extern "C" {
     
     __host__ void printSphCoordArray(const sphCoord *arr, const int num);
     
+    __host__ void printFloatArray(const float *arr, const int num);
+    
     __host__ void printRotAngArray(const rotAng *angle, const int numAng);
     
     __host__ bool equalRotArrays(const rotAng *ang1, const rotAng *ang2, const int numAng);

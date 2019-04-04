@@ -177,6 +177,13 @@ __host__ void printSphCoordArray(const sphCoord *arr, const int num)
     }
 }
 
+__host__ void printFloatArray(const float *arr, const int num)
+{
+    for(int i=0;i<num;i++) {
+        printf("%f\n",arr[i]);
+    }
+}
+
 __host__ bool equalRotArrays(const rotAng *ang1, const rotAng *ang2, const int numAng)
 {
     bool result = true, tempResult;

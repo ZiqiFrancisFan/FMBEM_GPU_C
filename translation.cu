@@ -2591,19 +2591,22 @@ __host__ void genSRCoaxTransVecsRotAngles(const int l, const double d, const car
     for(int i=0;i<numRot;i++) {
         (*pRotAngle)[i] = tempAng[i];
     }
+    free(tempAng);
+    free(tempVec);
 }
 
 __host__ void genSSCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min, 
         float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng)
 {
-    int prntIdx = parent(0), idx, numVec, numRot;
+    int prntIdx = parent(0), idx, numVec = 0, numRot = 0;
     bool flag;
     cartCoord_d boxCtr[2], vec;
     rotAng angle, *tempAng;
-    float t, *tempVec, eps = 0.00001*d;
+    float t, *tempVec, eps = 0.000001*d;
     sphCoord coord_sph;
     tempAng = (rotAng*)malloc(8*sizeof(rotAng));
     tempVec = (float*)malloc(8*sizeof(float));
+    
     boxCtr[1] = boxCenter(prntIdx,l-1);
     boxCtr[1] = descale(boxCtr[1],pt_min,d);
     for(int childIdx=0;childIdx<8;childIdx++) {
@@ -2664,7 +2667,8 @@ __host__ void genSSCoaxTransVecsRotAngles(const int l, const double d, const car
     for(int i=0;i<numRot;i++) {
         (*pRotAngle)[i] = tempAng[i];
     }
-    
+    free(tempAng);
+    free(tempVec);
 }
 
 __host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min, 
@@ -2672,7 +2676,7 @@ __host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const car
 {
     //l should be larger than lmin
     
-    int prntIdx = parent(0), idx, numVec, numRot;
+    int prntIdx = parent(0), idx, numVec = 0, numRot = 0;
     bool flag;
     cartCoord_d boxCtr[2], vec;
     rotAng angle, *tempAng;
@@ -2740,6 +2744,8 @@ __host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const car
     for(int i=0;i<numRot;i++) {
         (*pRotAngle)[i] = tempAng[i];
     }
+    free(tempAng);
+    free(tempVec);
     
 }
 
@@ -2785,20 +2791,26 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     //boxes at the bottom level
     int *srcBoxSet = (int*)malloc((numElem+1)*sizeof(int));
     srcBoxes(pt,elem,numElem,s,srcBoxSet,&oct->lmax,&oct->d,&oct->pt_min);
+    printf("lmax = %d\n",oct->lmax);
+    
+    oct->fmmLevelSet = (int**)malloc((oct->lmax-oct->lmin+1)*sizeof(int*));
+    FMMLevelSet(srcBoxSet,oct->lmax,oct->fmmLevelSet);
+    printf("successfully generated level related sets.\n");
+    
     int pmax = truncNum(oct->maxWavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
-    float epsilon = 0.000001*oct->d;
+    float epsilon = 0.000000001*oct->d;
     
-    
-    //generate sr rotation matrices
-    rotAng *ang;
-    float *srCoaxTransVec, *rrCoaxTransVec, *tempVec = NULL;
+    //declare pointers for rotation angles and translation vectors
+    rotAng *ang = NULL;
+    float *srCoaxTransVec = NULL, *rrCoaxTransVec = NULL, *tempVec = NULL;
     int numRot, numVec;
     
     bool flag;
     
     for(int l=oct->lmin;l<=oct->lmax;l++) {
-        //generate vectors and rotations at level l
+        //generate vectors and rotation angles at level l
         genSRCoaxTransVecsRotAngles(l,oct->d,oct->pt_min,&srCoaxTransVec,&numVec,&ang,&numRot);
+        
         //no angles saved yet
         if(oct->numRotAng==0) {
             //allocate memory for angles and move the angles to the octree structure
@@ -2821,6 +2833,7 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
             oct->numSRCoaxTransVec = numVec;
         } else {
             //allocate memory for temporary vector array
+            
             tempVec = (float*)malloc((oct->numSRCoaxTransVec+numVec)*sizeof(float));
             
             //move all vectors in the array to the temporary array
@@ -2841,10 +2854,10 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
                         flag = true;
                         break;
                     }
-                    if(!flag) {
-                        //push the vector into the vector array and increase the number of SR vectors
-                        tempVec[oct->numSRCoaxTransVec++] = srCoaxTransVec[i];
-                    }
+                }
+                if(!flag) {
+                    //push the vector into the vector array and increase the number of SR vectors
+                    tempVec[oct->numSRCoaxTransVec++] = srCoaxTransVec[i];
                 }
             }
             
@@ -2855,6 +2868,7 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
             }
             free(tempVec);
         }
+        
         free(srCoaxTransVec);
         free(ang);
     }
@@ -2884,6 +2898,8 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     if(oct->srCoaxMat!=NULL) {
         free(oct->srCoaxMat);
     }
+    
+    //compute the largest truncation number
     pmax = truncNum(wavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
     oct->srCoaxMat = (cuFloatComplex*)malloc(oct->numSRCoaxTransVec*(pmax*(2*pmax*pmax+3*pmax+1)/6)*sizeof(cuFloatComplex));
     HOST_CALL(genSRSparseCoaxTransMat(wavNum,oct->srCoaxTransVec,oct->numSRCoaxTransVec,pmax,oct->srCoaxMat));
@@ -2922,10 +2938,10 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
                         flag = true;
                         break;
                     }
-                    if(!flag) {
-                        //push the vector into the vector array and increase the number of SR vectors
-                        tempVec[oct->numRRCoaxTransVec++] = rrCoaxTransVec[i];
-                    }
+                }
+                if(!flag) {
+                    //push the vector into the vector array and increase the number of SR vectors
+                    tempVec[oct->numRRCoaxTransVec++] = rrCoaxTransVec[i];
                 }
             }
             
@@ -2974,10 +2990,10 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
                         flag = true;
                         break;
                     }
-                    if(!flag) {
-                        //push the vector into the vector array and increase the number of SR vectors
-                        tempVec[oct->numRRCoaxTransVec++] = rrCoaxTransVec[i];
-                    }
+                }
+                if(!flag) {
+                    //push the vector into the vector array and increase the number of SR vectors
+                    tempVec[oct->numRRCoaxTransVec++] = rrCoaxTransVec[i];
                 }
             }
             
@@ -2993,6 +3009,7 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     }
     
     bubbleSort(oct->rrCoaxTransVec,oct->numRRCoaxTransVec);
+    
     //generate rr/ss coaxial translation matrices; the largest matrices corresponding to the current wave number will be generated
     if(oct->rrCoaxMat!=NULL) {
         free(oct->rrCoaxMat);
@@ -3003,6 +3020,29 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     
     
     return EXIT_SUCCESS;
+}
+
+__host__ void destroyOctree(octree *oct)
+{
+    for(int l=oct->lmin;l<=oct->lmax;l++) {
+        free(oct->fmmLevelSet[l-oct->lmin]);
+    }
+    free(oct->fmmLevelSet);
+    
+    free(oct->ang);
+    free(oct->rotMat1);
+    free(oct->rotMat2);
+    
+    free(oct->srCoaxTransVec);
+    free(oct->srCoaxMat);
+    
+    free(oct->rrCoaxTransVec);
+    free(oct->rrCoaxMat);
+}
+
+__host__ int OprL(const octree &oct, const cuFloatComplex *q, cuFloatComplex *prod)
+{
+    
 }
 
 

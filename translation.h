@@ -286,10 +286,6 @@ __host__ __device__ cartCoord triCentroid(const cartCoord nod[3]);
 __host__ __device__ void cuMatVecMul_rcr(const cuFloatComplex *rotMat1, const cuFloatComplex *coaxMat, 
         const cuFloatComplex *rotMat2, const cuFloatComplex *vec, const int p, cuFloatComplex *prod);
 
-int genOctree(const char *filename, const float wavNum, const int s, octree *oct);
-
-int destroyOctree(octree *oct, const int lmax);
-
 __host__ int testSparseRotMatsGen(const rotAng *rotAngle, const int numRot, const int p);
 
 __host__ int testSparseCoaxTransMatsGen(const float wavNum, const float *transVec, const int numTransVec, 
@@ -308,6 +304,8 @@ __host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const car
 __host__ void initOctree(octree *oct);
 
 __host__ int genOctree(const char *filename, const float wavNum, const int s, octree *oct);
+
+__host__ void destroyOctree(octree *oct);
 
 #endif /* NUMERICAL_H */
 

@@ -652,7 +652,7 @@ int deterLmax(const cartCoord_d *pnts, const int numPnts, const int s)
         t = pnt2boxnum(pnts[i],l_avl);
         pntInd[i] = t;
     }
-    printf("Started array order.\n");
+    //printf("Started array order.\n");
     /*
     for(i=0;i<numPnts;i++) {
         printf("%d ",pntInd[i]);
@@ -909,6 +909,9 @@ void FMMLevelSet(const int *btmLvl, const int lmax, int **pSet)
         prntLevelSet(pSet[l+1-lmin],l+1,set_temp);
         pSet[l-lmin] = (int*)malloc((set_temp[0]+1)*sizeof(int));
         copySet(set_temp,pSet[l-lmin]);
+        sortSet(pSet[l-lmin]);
+    }
+    for(l=lmin;l<=lmax;l++) {
         sortSet(pSet[l-lmin]);
     }
     //printf("completed FMMLvlSet_e\n");
