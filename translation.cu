@@ -7,6 +7,7 @@
 #include <curand.h>
 #include "translation.h"
 #include "octree.h"
+#include "integral.h"
 
 
 void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const int numCol, 
@@ -2746,11 +2747,94 @@ __host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const car
     }
     free(tempAng);
     free(tempVec);
+}
+
+void genSSIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
+        const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numRot, 
+        transIdx **ssTransIdxLevelSet)
+{
+    const int lmin = 2;
+    cartCoord_d boxCtr, prntBoxCtr, vec;
+    sphCoord coord_sph;
+    rotAng angle;
+    float t, eps = 0.000001*d;
     
+    for(int l=lmax;l>lmin;l--) {
+        ssTransIdxLevelSet[l-(lmin+1)] = (transIdx*)malloc(fmmLevelSet[l-lmin][0]*sizeof(transIdx));
+        for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            boxCtr = boxCenter(fmmLevelSet[l-lmin][i+1],l);
+            boxCtr = descale(boxCtr,pt_min,d);
+            prntBoxCtr = boxCenter(parent(fmmLevelSet[l-lmin][i+1]),l-1);
+            prntBoxCtr = descale(prntBoxCtr,pt_min,d);
+            vec = cartCoordSub_d(prntBoxCtr,boxCtr);
+            
+            coord_sph = cart2sph(cartCoord_d2cartCoord(vec));
+            
+            angle.alpha = coord_sph.phi;
+            angle.beta = coord_sph.theta;
+            angle.gamma = 0;
+            t = coord_sph.r;
+            for(int j=0;j<numRRTransVec;j++) {
+                if(abs(t-rrCoaxTransVec[j])<eps) {
+                    ssTransIdxLevelSet[l-(lmin+1)][i].coaxIdx = j;
+                }
+                break;
+            }
+            for(int j=0;j<numRot;j++) {
+                if(abs(angle.alpha-ang[j].alpha)<eps && abs(angle.beta-ang[j].beta)<eps) {
+                    ssTransIdxLevelSet[l-(lmin+1)][i].rotIdx = j;
+                }
+                break;
+            }
+        }
+    }
+}
+
+void genRRIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
+        const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numRot, 
+        transIdx **rrTransIdxLevelSet)
+{
+    const int lmin = 2;
+    cartCoord_d boxCtr, prntBoxCtr, vec;
+    sphCoord coord_sph;
+    rotAng angle;
+    float t, eps = 0.000001*d;
+    
+    for(int l=lmin+1;l<=lmax;l++) {
+        rrTransIdxLevelSet[l-(lmin+1)] = (transIdx*)malloc(fmmLevelSet[l-lmin][0]*sizeof(transIdx));
+        for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            boxCtr = boxCenter(fmmLevelSet[l-lmin][i+1],l);
+            boxCtr = descale(boxCtr,pt_min,d);
+            prntBoxCtr = boxCenter(parent(fmmLevelSet[l-lmin][i+1]),l-1);
+            prntBoxCtr = descale(prntBoxCtr,pt_min,d);
+            vec = cartCoordSub_d(prntBoxCtr,boxCtr);
+            
+            coord_sph = cart2sph(cartCoord_d2cartCoord(vec));
+            
+            angle.alpha = coord_sph.phi;
+            angle.beta = coord_sph.theta;
+            angle.gamma = 0;
+            t = coord_sph.r;
+            for(int j=0;j<numRRTransVec;j++) {
+                if(abs(t-rrCoaxTransVec[j])<eps) {
+                    rrTransIdxLevelSet[l-(lmin+1)][i].coaxIdx = j;
+                }
+                break;
+            }
+            for(int j=0;j<numRot;j++) {
+                if(abs(angle.alpha-ang[j].alpha)<eps && abs(angle.beta-ang[j].beta)<eps) {
+                    rrTransIdxLevelSet[l-(lmin+1)][i].rotIdx = j;
+                }
+                break;
+            }
+        }
+    }
 }
 
 __host__ void initOctree(octree *oct)
 {
+    oct->btmLvlElemIdx = NULL;
+    
     oct->lmin = 2;
     
     oct->numRotAng = 0;
@@ -2766,7 +2850,7 @@ __host__ void initOctree(octree *oct)
     oct->srCoaxTransVec = NULL;
     oct->srCoaxMat = NULL;
     
-    oct->eps = 0.01;
+    oct->eps = 0.05;
     oct->maxWavNum = 2*PI*20000/343.0f;
 }
 
@@ -2788,6 +2872,20 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     //read the obj file
     HOST_CALL(readOBJ(filename,pt,elem));
     
+    //move points and elements to the octree
+    oct->pt = (cartCoord*)malloc(numPt*sizeof(cartCoord));
+    oct->elem = (triElem*)malloc(numElem*sizeof(triElem));
+    oct->numPt = numPt;
+    oct->numElem = numElem;
+    
+    for(int i=0;i<numPt;i++) {
+        oct->pt[i] = cartCoord_d2cartCoord(pt[i]);
+    }
+    
+    for(int i=0;i<numElem;i++) {
+        oct->elem[i] = elem[i];
+    }
+    
     //boxes at the bottom level
     int *srcBoxSet = (int*)malloc((numElem+1)*sizeof(int));
     srcBoxes(pt,elem,numElem,s,srcBoxSet,&oct->lmax,&oct->d,&oct->pt_min);
@@ -2797,7 +2895,28 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     FMMLevelSet(srcBoxSet,oct->lmax,oct->fmmLevelSet);
     printf("successfully generated level related sets.\n");
     
+    free(pt);
+    free(elem);
+    
+    
+    if(oct->btmLvlElemIdx==NULL) {
+        cartCoord nod[3], ctr;
+        int num, idx;
+        oct->btmLvlElemIdx = (int*)malloc(oct->numElem*sizeof(int));
+        for(int i=0;i<oct->numElem;i++) {
+            for(int j=0;j<3;j++) {
+                nod[j] = oct->pt[(oct->elem)[i].node[j]];
+            }
+            ctr = triCentroid(nod);
+            ctr = cartCoord_d2cartCoord(scale(cartCoord2cartCoord_d(ctr),oct->pt_min,oct->d));
+            num = pnt2boxnum(cartCoord2cartCoord_d(ctr),oct->lmax);
+            idx = findSetInd(oct->fmmLevelSet[oct->lmax-oct->lmin],num);
+            oct->btmLvlElemIdx[i] = idx;
+        }
+    }
+    
     int pmax = truncNum(oct->maxWavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
+    printf("pmax = %d\n",pmax);
     float epsilon = 0.000000001*oct->d;
     
     //declare pointers for rotation angles and translation vectors
@@ -3019,11 +3138,15 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     HOST_CALL(genRRSparseCoaxTransMat(wavNum,oct->rrCoaxTransVec,oct->numRRCoaxTransVec,pmax,oct->rrCoaxMat));
     
     
+    
     return EXIT_SUCCESS;
 }
 
 __host__ void destroyOctree(octree *oct)
 {
+    free(oct->pt);
+    free(oct->elem);
+    
     for(int l=oct->lmin;l<=oct->lmax;l++) {
         free(oct->fmmLevelSet[l-oct->lmin]);
     }
@@ -3038,11 +3161,48 @@ __host__ void destroyOctree(octree *oct)
     
     free(oct->rrCoaxTransVec);
     free(oct->rrCoaxMat);
+    
+    free(oct->btmLvlElemIdx);
 }
 
-__host__ int OprL(const octree &oct, const cuFloatComplex *q, cuFloatComplex *prod)
+__host__ int OprL(const float wavNum, const octree *oct, const float *intPt, const float *intWgt, 
+        const cuFloatComplex *q, cuFloatComplex *prod)
 {
+    int p, octIdx, idx, btmIdx;
+    cuFloatComplex *elemCoeff, **xCoeff, **yCoeff;
+    cartCoord triNod[3], elemCtr, x_lp;
     
+    //allocate memory for upward pass
+    xCoeff = (cuFloatComplex**)malloc((oct->lmax-oct->lmin+1)*sizeof(cuFloatComplex*));
+    for(int l=oct->lmin;l<=oct->lmax;l++) {
+        p = truncNum(wavNum,oct->eps,1.5,pow(2,-l)*oct->d);
+        xCoeff[l-oct->lmin] = (cuFloatComplex*)calloc(oct->fmmLevelSet[l-oct->lmin][0]*p*p,sizeof(cuFloatComplex));
+    }
+    
+    //decide the truncation number of the bottom level
+    p = truncNum(wavNum,0.05,1.5,pow(2,-oct->lmax)*oct->d);
+    
+    //compute the coefficient of the bottom level
+    for(int i=0;i<oct->numElem;i++) {
+        for(int j=0;j<3;j++) {
+            triNod[j] = oct->pt[(oct->elem[i]).node[j]];
+        }
+        elemCtr = triCentroid(triNod);
+        octIdx = pnt2boxnum(scale(cartCoord2cartCoord_d(elemCtr),oct->pt_min,oct->d),oct->lmax);
+        
+        idx = findSetInd(oct->fmmLevelSet[oct->lmax-oct->lmin],octIdx);
+        x_lp = cartCoord_d2cartCoord(descale(boxCenter(octIdx,oct->lmax),oct->pt_min,oct->d));
+        bottomLevelCoeff_L(wavNum,oct->elem[i],q[i],oct->pt,x_lp,intPt,intWgt,elemCoeff,p);
+        
+        btmIdx = oct->btmLvlElemIdx[i];
+        for(int j=0;j<p*p;j++) {
+            xCoeff[oct->lmax-oct->lmin][btmIdx*p*p+j] = cuCaddf(xCoeff[oct->lmax-oct->lmin][btmIdx*p*p+j],prod[j]);
+        }
+    }
+    
+    
+    
+    return EXIT_SUCCESS;
 }
 
 

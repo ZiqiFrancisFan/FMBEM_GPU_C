@@ -301,6 +301,16 @@ __host__ void genSSCoaxTransVecsRotAngles(const int l, const double d, const car
 __host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const cartCoord_d pt_min, 
         float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng);
 
+//generate indices for rotations and coaxial translations in the SS translation
+void genSSIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
+        const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numAng, 
+        transIdx **transIdxLevelSet);
+
+//generate indices for rotations and coaxial translations in the RR translation
+void genRRIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
+        const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numRot, 
+        transIdx **rrTransIdxLevelSet);
+
 __host__ void initOctree(octree *oct);
 
 __host__ int genOctree(const char *filename, const float wavNum, const int s, octree *oct);

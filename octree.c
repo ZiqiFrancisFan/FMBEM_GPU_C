@@ -15,15 +15,6 @@
 /*We follow the rule that the small index of an array corresponds to the more 
  significant bit*/
 
-void printIntArray(const int *a, const int sz)
-{
-    int i;
-    for(i=0;i<sz;i++) {
-        printf("%d ",a[i]);
-    }
-    printf("\n");
-}
-
 bool arrEqual(const int *a, const int *b, const int num) 
 {
     int i;
@@ -68,7 +59,7 @@ void children(const int num, int *cldrn)
     }
 }
 
-cartCoord_d scale(const cartCoord_d x, const cartCoord_d x_min, const double d) 
+cartCoord_d scale(const cartCoord_d x, const cartCoord_d x_min, const double d)
 {
     cartCoord_d x_scaled;
     x_scaled.x = (x.x-x_min.x)/d;
@@ -909,9 +900,6 @@ void FMMLevelSet(const int *btmLvl, const int lmax, int **pSet)
         prntLevelSet(pSet[l+1-lmin],l+1,set_temp);
         pSet[l-lmin] = (int*)malloc((set_temp[0]+1)*sizeof(int));
         copySet(set_temp,pSet[l-lmin]);
-        sortSet(pSet[l-lmin]);
-    }
-    for(l=lmin;l<=lmax;l++) {
         sortSet(pSet[l-lmin]);
     }
     //printf("completed FMMLvlSet_e\n");

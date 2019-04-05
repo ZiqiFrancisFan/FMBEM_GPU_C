@@ -26,6 +26,9 @@ int gaussPtsToDevice(const float *pt, const float *wgt);
 
 __host__ __device__ cuFloatComplex green(const float k, const cartCoord x, const cartCoord y);
 
+__host__ cuFloatComplex triElemIntegral_R(const float wavNum, const cartCoord nod[3], 
+        const int n, const int m, const cartCoord x_lp, const float *pt, const float *wgt);
+
 __host__ __device__ cuFloatComplex triElemIntegral_G_nsgl(const float wavNum, const cartCoord nod[3], const cartCoord y, 
         const float *pt, const float *wgt);
 
@@ -60,6 +63,10 @@ __host__ __device__ cuFloatComplex triElemIntegral_p2Gp1np2n_sgl(const float wav
 
 __host__ __device__ void cmptDiffCoeff(const float wavNum, const cuFloatComplex *coeff, 
         const int p, const cartCoord nrml, cuFloatComplex *coeff_n);
+
+//idx is the index of the element
+__host__ void bottomLevelCoeff_L(const float wavNum, const triElem elem, const cuFloatComplex q, const cartCoord *pt, 
+        const cartCoord x_lp, const float *intPt, const float *intWgt, cuFloatComplex *coeff, const int p);
 
 #endif /* INTEGRAL_H */
 

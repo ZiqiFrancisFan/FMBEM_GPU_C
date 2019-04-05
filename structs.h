@@ -69,6 +69,7 @@ extern "C" {
         float gamma;
     };
     
+    //includes the index for the coaxial translation and the index for the rotation angle
     struct transIdx
     {
         int coaxIdx;
@@ -91,6 +92,15 @@ extern "C" {
     
     struct octree
     {
+        //points and elements
+        cartCoord *pt;
+        triElem *elem;
+        
+        //number of points and elements
+        int numPt;
+        int numElem;
+        
+        //level sets
         int **fmmLevelSet;
         int lmax;
         int lmin;
@@ -113,6 +123,13 @@ extern "C" {
         
         float eps;
         float maxWavNum;
+        
+        int *btmLvlElemIdx;
+        
+        //indices for translation vectors
+        transIdx **ssTransIdx;
+        transIdx **srTransIdx;
+        transIdx **rrTransIdx;
     };
     
     typedef struct octree octree;
@@ -156,6 +173,8 @@ extern "C" {
     __host__ void printSphCoordArray(const sphCoord *arr, const int num);
     
     __host__ void printFloatArray(const float *arr, const int num);
+    
+    __host__ void printIntArray(const int *arr, const int num);
     
     __host__ void printRotAngArray(const rotAng *angle, const int numAng);
     

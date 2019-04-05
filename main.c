@@ -24,7 +24,7 @@ int main (int argc, char** argv)
     octree oct;
     initOctree(&oct);
     printf("Successfully initialized octree.\n");
-    genOctree("sphere_10mm.obj",300,1,&oct);
+    genOctree("sphere_10mm.obj",200,1,&oct);
     printf("successfully generated octree.\n");
     printf("Number of RR translations: %d\n",oct.numRRCoaxTransVec);
     printFloatArray(oct.rrCoaxTransVec,oct.numRRCoaxTransVec);
@@ -33,6 +33,8 @@ int main (int argc, char** argv)
     printf("Number of rotation angles: %d\n",oct.numRotAng);
     printRotAngArray(oct.ang,oct.numRotAng);
     printFMMLevelSet(oct.fmmLevelSet,oct.lmax);
+    printf("Bottom element indices: \n");
+    printIntArray(oct.btmLvlElemIdx,oct.numElem);
     destroyOctree(&oct);
     
     printf("successfully destroyed octree.\n");

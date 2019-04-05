@@ -26,8 +26,6 @@ extern "C" {
 #ifndef MAX
 #define MAX 100000
 #endif
-    
-    void printIntArray(const int *a, const int sz);
 
     void findNum(const char *filename, int *pV, int *pE);
 

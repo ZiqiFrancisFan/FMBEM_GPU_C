@@ -814,6 +814,23 @@ __host__ __device__ void cmptDiffCoeff(const float wavNum, const cuFloatComplex 
     }
 }
 
+__host__ void bottomLevelCoeff_L(const float wavNum, const triElem elem, const cuFloatComplex q, const cartCoord *pt, 
+        const cartCoord x_lp, const float *intPt, const float *intWgt, cuFloatComplex *coeff, const int p)
+{
+    cartCoord triNod[3];
+    cuFloatComplex temp = cuCmulf(make_cuFloatComplex(0,wavNum),q);
+    for(int i=0;i<3;i++) {
+        triNod[i] = pt[elem.node[i]];
+    }
+    int n, m, idx;
+    for(n=0;n<p;n++) {
+        for(m=-n;n<=n;n++) {
+            idx = NM2IDX0(n,m);
+            coeff[idx] = cuCmulf(temp,triElemIntegral_R(wavNum,triNod,n,-m,x_lp,intPt,intWgt));
+        }
+    }
+}
+
 
 
 
