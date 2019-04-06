@@ -9,13 +9,12 @@
 #include "octree.h"
 #include "integral.h"
 
-
 void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const int numCol, 
         const int lda)
 {
     for(int i=0;i<numRow;i++) {
         for(int j=0;j<numCol;j++) {
-            printf("(%f,%f)",cuCrealf(A[IDXC0(i,j,lda)]),cuCimagf(A[IDXC0(i,j,lda)]));
+            printf("(%.6f,%.6f)",cuCrealf(A[IDXC0(i,j,lda)]),cuCimagf(A[IDXC0(i,j,lda)]));
         }
         printf("\n");
     }
@@ -3032,6 +3031,7 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     }
     
     int pmax = truncNum(oct->maxWavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
+    oct->pmax = pmax;
     printf("pmax = %d\n",pmax);
     float epsilon = 0.000000001*oct->d;
     
@@ -3345,9 +3345,9 @@ __host__ void destroyOctree(octree *oct)
 __host__ int OprL(const float wavNum, const octree *oct, const float *intPt, const float *intWgt, 
         const cuFloatComplex *q, cuFloatComplex *prod)
 {
-    int p, octIdx, idx, btmIdx;
-    cuFloatComplex *elemCoeff, **xCoeff, **yCoeff;
-    cartCoord triNod[3], elemCtr, x_lp;
+    int p, idx, pCur, pNext;
+    cuFloatComplex *elemCoeff, **xCoeff, **yCoeff, *tempCoeff;
+    cartCoord x_lp;
     
     //allocate memory for upward pass
     xCoeff = (cuFloatComplex**)malloc((oct->lmax-oct->lmin+1)*sizeof(cuFloatComplex*));
@@ -3359,23 +3359,37 @@ __host__ int OprL(const float wavNum, const octree *oct, const float *intPt, con
     //decide the truncation number of the bottom level
     p = truncNum(wavNum,0.05,1.5,pow(2,-oct->lmax)*oct->d);
     
+    //allocate memory for the element related coefficients
+    elemCoeff = (cuFloatComplex*)malloc(oct->numElem*p*p*sizeof(cuFloatComplex));
+    
     //compute the coefficient of the bottom level
     for(int i=0;i<oct->numElem;i++) {
-        for(int j=0;j<3;j++) {
-            triNod[j] = oct->pt[(oct->elem[i]).node[j]];
-        }
-        elemCtr = triCentroid(triNod);
-        octIdx = pnt2boxnum(scale(cartCoord2cartCoord_d(elemCtr),oct->pt_min,oct->d),oct->lmax);
+        //get the box number the element belongs to
+        idx = oct->btmLvlElemIdx[i];
         
-        idx = findSetInd(oct->fmmLevelSet[oct->lmax-oct->lmin],octIdx);
-        x_lp = cartCoord_d2cartCoord(descale(boxCenter(octIdx,oct->lmax),oct->pt_min,oct->d));
+        //compute the expansion point of the current element
+        x_lp = cartCoord_d2cartCoord(descale(boxCenter(idx,oct->lmax),oct->pt_min,oct->d));
         bottomLevelCoeff_L(wavNum,oct->elem[i],q[i],oct->pt,x_lp,intPt,intWgt,elemCoeff,p);
         
-        btmIdx = oct->btmLvlElemIdx[i];
+        //update the bottom level coefficients using the element coefficients
         for(int j=0;j<p*p;j++) {
-            xCoeff[oct->lmax-oct->lmin][btmIdx*p*p+j] = cuCaddf(xCoeff[oct->lmax-oct->lmin][btmIdx*p*p+j],prod[j]);
+            xCoeff[oct->lmax-oct->lmin][idx*p*p+j] = cuCaddf(xCoeff[oct->lmax-oct->lmin][idx*p*p+j],elemCoeff[j]);
         }
     }
+    free(elemCoeff);
+    
+    //upward pass
+    for(int l=oct->lmax;l>oct->lmin;l--) {
+        //compute the truncation number p for the current and the next level
+        pCur = truncNum(wavNum,0.05,1.5,pow(2,-l)*oct->d);
+        pNext = truncNum(wavNum,0.05,1.5,pow(2,-(l-1))*oct->d);
+        
+        tempCoeff = (cuFloatComplex*)calloc(oct->fmmLevelSet[l-oct->lmin][0]*pNext*pNext,sizeof(cuFloatComplex));
+        for(int i=0;i<oct->fmmLevelSet[l-oct->lmin][0];i++) {
+            memcpy(&tempCoeff[pNext*pNext*i],&xCoeff[l-oct->lmin][pCur*pCur*i],pCur*pCur*sizeof(cuFloatComplex));
+        }
+    }
+    
     
     
     

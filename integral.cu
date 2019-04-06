@@ -11,10 +11,14 @@ __constant__ float density = 1.2041;
 
 __constant__ float speed = 343.21;
 
-//Integral points and weights
+//Integral points and weights on the device
 __constant__ float INTPT[INTORDER]; 
 
 __constant__ float INTWGT[INTORDER];
+
+//integral points and weights on the host
+float INTPT_h[INTORDER];
+float INTWGT_h[INTORDER];
 
 int genGaussParams(const int n, float *pt, float *wgt)
 {

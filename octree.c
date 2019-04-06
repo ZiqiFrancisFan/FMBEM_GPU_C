@@ -931,6 +931,7 @@ void printLevelSetNumSR(int **numSet, int **pSet, const int lmax)
 
 void printFMMLevelSet(int **pSet, const int lmax)
 {
+    printf("FMM level set: \n");
     for(int l=2;l<=lmax;l++) {
         printf("Level %d, number of boxes: %d\n",l,pSet[l-2][0]);
         printSet(pSet[l-2]);
