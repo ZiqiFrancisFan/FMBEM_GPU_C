@@ -102,6 +102,8 @@ extern "C" {
         
         //level sets
         int **fmmLevelSet;
+        
+        //structure of octree
         int lmax;
         int lmin;
         double d;
@@ -114,6 +116,7 @@ extern "C" {
         cuFloatComplex *srCoaxMat;
         cuFloatComplex *rrCoaxMat;
         
+        //coaxial vectors and rotation angles
         float *srCoaxTransVec;
         int numSRCoaxTransVec;
         float *rrCoaxTransVec;
@@ -130,6 +133,18 @@ extern "C" {
         transIdx **ssTransIdx;
         transIdx **srTransIdx;
         transIdx **rrTransIdx;
+        
+        //ss translation indices
+        int **ssTransDestArr;
+        
+        
+        //sr translation indices
+        int **srNumLevelArr;
+        int **srTransOriginArr;
+        int **srTransDestArr;
+        
+        //rr translation indices
+        int **rrTransOriginArr;
     };
     
     typedef struct octree octree;

@@ -33,8 +33,15 @@ int main (int argc, char** argv)
     printf("Number of rotation angles: %d\n",oct.numRotAng);
     printRotAngArray(oct.ang,oct.numRotAng);
     printFMMLevelSet(oct.fmmLevelSet,oct.lmax);
-    printf("Bottom element indices: \n");
-    printIntArray(oct.btmLvlElemIdx,oct.numElem);
+    //printf("Bottom element indices: \n");
+    //printIntArray(oct.btmLvlElemIdx,oct.numElem);
+    printSSLevelTransIdxArr(oct.ssTransIdx,oct.lmax,oct.fmmLevelSet);
+    printSSLevelTransDest(oct.ssTransDestArr,oct.lmax,oct.fmmLevelSet);
+    printSRLevelTransIdxArr(oct.srTransIdx,oct.lmax,oct.srNumLevelArr,oct.fmmLevelSet);
+    printSRLevelTransOrigin(oct.srTransOriginArr,oct.lmax,oct.srNumLevelArr,oct.fmmLevelSet);
+    printSRLevelTransDest(oct.srTransDestArr,oct.lmax,oct.srNumLevelArr,oct.fmmLevelSet);
+    printRRLevelTransIdxArr(oct.rrTransIdx,oct.lmax,oct.fmmLevelSet);
+    printRRLevelTransOrigin(oct.rrTransOriginArr,oct.lmax,oct.fmmLevelSet);
     destroyOctree(&oct);
     
     printf("successfully destroyed octree.\n");

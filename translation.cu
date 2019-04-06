@@ -2749,9 +2749,9 @@ __host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const car
     free(tempVec);
 }
 
-void genSSIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
+void genSSIdxArrs(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
         const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numRot, 
-        transIdx **ssTransIdxLevelSet)
+        transIdx **ssTransIdxLevelArr, int **ssTransDestArr)
 {
     const int lmin = 2;
     cartCoord_d boxCtr, prntBoxCtr, vec;
@@ -2760,8 +2760,12 @@ void genSSIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, c
     float t, eps = 0.000001*d;
     
     for(int l=lmax;l>lmin;l--) {
-        ssTransIdxLevelSet[l-(lmin+1)] = (transIdx*)malloc(fmmLevelSet[l-lmin][0]*sizeof(transIdx));
+        ssTransIdxLevelArr[l-(lmin+1)] = (transIdx*)malloc(fmmLevelSet[l-lmin][0]*sizeof(transIdx));
+        ssTransDestArr[l-(lmin+1)] = (int*)malloc(fmmLevelSet[l-lmin][0]*sizeof(int));
         for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            //the parent destination in the upper level
+            ssTransDestArr[l-(lmin+1)][i] = findSetInd(fmmLevelSet[l-1-lmin],parent(fmmLevelSet[l-lmin][i+1]));
+            
             boxCtr = boxCenter(fmmLevelSet[l-lmin][i+1],l);
             boxCtr = descale(boxCtr,pt_min,d);
             prntBoxCtr = boxCenter(parent(fmmLevelSet[l-lmin][i+1]),l-1);
@@ -2774,25 +2778,108 @@ void genSSIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, c
             angle.beta = coord_sph.theta;
             angle.gamma = 0;
             t = coord_sph.r;
+            
+            //get the index of the coaxial translation vector
             for(int j=0;j<numRRTransVec;j++) {
                 if(abs(t-rrCoaxTransVec[j])<eps) {
-                    ssTransIdxLevelSet[l-(lmin+1)][i].coaxIdx = j;
+                    ssTransIdxLevelArr[l-(lmin+1)][i].coaxIdx = j;
+                    break;
                 }
-                break;
+                
             }
+            
+            //get the index of the rotation angle
             for(int j=0;j<numRot;j++) {
                 if(abs(angle.alpha-ang[j].alpha)<eps && abs(angle.beta-ang[j].beta)<eps) {
-                    ssTransIdxLevelSet[l-(lmin+1)][i].rotIdx = j;
+                    ssTransIdxLevelArr[l-(lmin+1)][i].rotIdx = j;
+                    break;
                 }
-                break;
+                
             }
         }
     }
 }
 
-void genRRIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
+void genSRIdxArrs(int **fmmLevelSet, int **SRNumLevelArr, const int lmax, const cartCoord_d pt_min, 
+        const double d, const float *srCoaxTransVec, const int numSRTransVec, const rotAng *ang, 
+        const int numRot, transIdx **srTransIdxLevelArr, int **srTransOriginArr, int **srTransDestArr)
+{
+    const int lmin = 2;
+    cartCoord_d boxCtr[2], vec;
+    sphCoord coord_sph;
+    rotAng angle;
+    float t, eps = 0.000001*d;
+    int totalLevelNum, coaxTransIdx, rotIdx, originIdx, destIdx; //total number of SR translations
+    int set1[8*27+1], set2[8*27+1];
+    
+    for(int l=lmin;l<=lmax;l++) {
+        totalLevelNum = 0;
+        coaxTransIdx = 0;
+        rotIdx = 0;
+        originIdx = 0;
+        destIdx = 0;
+        
+        //compute the total number of SR translations at level l
+        for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            totalLevelNum += SRNumLevelArr[l-lmin][i];
+        }
+        
+        //allocate memory for the index level array
+        srTransIdxLevelArr[l-lmin] = (transIdx*)malloc(totalLevelNum*sizeof(transIdx));
+        srTransOriginArr[l-lmin] = (int*)malloc(totalLevelNum*sizeof(int));
+        srTransDestArr[l-lmin] = (int*)malloc(totalLevelNum*sizeof(int));
+        
+        //
+        for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            //compute the termination point
+            boxCtr[1] = boxCenter(fmmLevelSet[l-lmin][i+1],l);
+            boxCtr[1] = descale(boxCtr[1],pt_min,d);
+            
+            //all boxes that contribute the the current box at level l
+            I4(fmmLevelSet[l-lmin][i+1],l,set1);
+            intersection(set1,fmmLevelSet[l-lmin],set2);
+            
+            //iterate through all origins
+            for(int j=0;j<set2[0];j++) {
+                srTransOriginArr[l-lmin][originIdx++] = findSetInd(fmmLevelSet[l-lmin],set2[j+1]);
+                srTransDestArr[l-lmin][destIdx++] = fmmLevelSet[l-lmin][i+1];
+                
+                boxCtr[0] = boxCenter(set2[j+1],l);
+                boxCtr[0] = descale(boxCtr[0],pt_min,d);
+                
+                vec = cartCoordSub_d(boxCtr[1],boxCtr[0]);
+                coord_sph = cart2sph(cartCoord_d2cartCoord(vec));
+            
+                angle.alpha = coord_sph.phi;
+                angle.beta = coord_sph.theta;
+                angle.gamma = 0;
+                t = coord_sph.r;
+                
+                //find the index of the coaxian translation
+                for(int k=0;k<numSRTransVec;k++) {
+                    if(abs(t-srCoaxTransVec[k])<eps) {
+                        srTransIdxLevelArr[l-lmin][coaxTransIdx++].coaxIdx = k;
+                        break;
+                    }
+                    
+                }
+                //find the index of the rotation
+                for(int k=0;k<numRot;k++) {
+                    if(abs(angle.alpha-ang[k].alpha)<eps && abs(angle.beta-ang[k].beta)<eps) {
+                        srTransIdxLevelArr[l-lmin][rotIdx++].rotIdx = k;
+                        break;
+                    }
+                    
+                }
+            }
+        }
+        
+    }
+}
+
+void genRRIdxArrs(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
         const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numRot, 
-        transIdx **rrTransIdxLevelSet)
+        transIdx **rrTransIdxLevelArr, int **rrTransOriginArr)
 {
     const int lmin = 2;
     cartCoord_d boxCtr, prntBoxCtr, vec;
@@ -2801,13 +2888,17 @@ void genRRIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, c
     float t, eps = 0.000001*d;
     
     for(int l=lmin+1;l<=lmax;l++) {
-        rrTransIdxLevelSet[l-(lmin+1)] = (transIdx*)malloc(fmmLevelSet[l-lmin][0]*sizeof(transIdx));
+        rrTransIdxLevelArr[l-(lmin+1)] = (transIdx*)malloc(fmmLevelSet[l-lmin][0]*sizeof(transIdx));
+        rrTransOriginArr[l-(lmin+1)] = (int*)malloc(fmmLevelSet[l-lmin][0]*sizeof(int));
         for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            //find the coefficient vector origin indices
+            rrTransOriginArr[l-(lmin+1)][i] = findSetInd(fmmLevelSet[l-1-lmin],parent(fmmLevelSet[l-lmin][i+1]));
+            
             boxCtr = boxCenter(fmmLevelSet[l-lmin][i+1],l);
             boxCtr = descale(boxCtr,pt_min,d);
             prntBoxCtr = boxCenter(parent(fmmLevelSet[l-lmin][i+1]),l-1);
             prntBoxCtr = descale(prntBoxCtr,pt_min,d);
-            vec = cartCoordSub_d(prntBoxCtr,boxCtr);
+            vec = cartCoordSub_d(boxCtr,prntBoxCtr);
             
             coord_sph = cart2sph(cartCoord_d2cartCoord(vec));
             
@@ -2817,15 +2908,17 @@ void genRRIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, c
             t = coord_sph.r;
             for(int j=0;j<numRRTransVec;j++) {
                 if(abs(t-rrCoaxTransVec[j])<eps) {
-                    rrTransIdxLevelSet[l-(lmin+1)][i].coaxIdx = j;
+                    rrTransIdxLevelArr[l-(lmin+1)][i].coaxIdx = j;
+                    break;
                 }
-                break;
+                
             }
             for(int j=0;j<numRot;j++) {
                 if(abs(angle.alpha-ang[j].alpha)<eps && abs(angle.beta-ang[j].beta)<eps) {
-                    rrTransIdxLevelSet[l-(lmin+1)][i].rotIdx = j;
+                    rrTransIdxLevelArr[l-(lmin+1)][i].rotIdx = j;
+                    break;
                 }
-                break;
+                
             }
         }
     }
@@ -2834,6 +2927,7 @@ void genRRIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, c
 __host__ void initOctree(octree *oct)
 {
     oct->btmLvlElemIdx = NULL;
+    oct->fmmLevelSet = NULL;
     
     oct->lmin = 2;
     
@@ -2852,52 +2946,74 @@ __host__ void initOctree(octree *oct)
     
     oct->eps = 0.05;
     oct->maxWavNum = 2*PI*20000/343.0f;
+    
+    oct->ssTransIdx = NULL;
+    oct->srTransIdx = NULL;
+    oct->rrTransIdx = NULL;
+    
+    oct->ssTransDestArr = NULL;
+    
+    oct->srNumLevelArr = NULL;
+    oct->srTransOriginArr = NULL;
+    oct->srTransDestArr = NULL;
+    
+    oct->rrTransOriginArr = NULL;
 }
 
 __host__ int genOctree(const char *filename, const float wavNum, const int s, octree *oct)
 {
-    //pointer to points and elements
-    cartCoord_d *pt;
-    triElem *elem;
-    
-    //number of points and elements
-    int numPt, numElem;
-    //find the number of points and elements and allocate memory
-    findNum(filename,&numPt,&numElem);
-    
-    //allocate memory for points and elements
-    pt = (cartCoord_d*)malloc(numPt*sizeof(cartCoord_d));
-    elem = (triElem*)malloc(numElem*sizeof(triElem));
-    
-    //read the obj file
-    HOST_CALL(readOBJ(filename,pt,elem));
-    
-    //move points and elements to the octree
-    oct->pt = (cartCoord*)malloc(numPt*sizeof(cartCoord));
-    oct->elem = (triElem*)malloc(numElem*sizeof(triElem));
-    oct->numPt = numPt;
-    oct->numElem = numElem;
-    
-    for(int i=0;i<numPt;i++) {
-        oct->pt[i] = cartCoord_d2cartCoord(pt[i]);
+    //get level-dependent box numbers
+    if(oct->fmmLevelSet==NULL) {
+        //pointer to points and elements
+        cartCoord_d *pt;
+        triElem *elem;
+
+        //number of points and elements
+        int numPt, numElem;
+        //find the number of points and elements and allocate memory
+        findNum(filename,&numPt,&numElem);
+
+        //allocate memory for points and elements
+        pt = (cartCoord_d*)malloc(numPt*sizeof(cartCoord_d));
+        elem = (triElem*)malloc(numElem*sizeof(triElem));
+
+        //read the obj file
+        HOST_CALL(readOBJ(filename,pt,elem));
+
+        //move points and elements to the octree
+        oct->pt = (cartCoord*)malloc(numPt*sizeof(cartCoord));
+        oct->elem = (triElem*)malloc(numElem*sizeof(triElem));
+        oct->numPt = numPt;
+        oct->numElem = numElem;
+        printf("numElem: %d\n",numElem);
+
+        for(int i=0;i<numPt;i++) {
+            oct->pt[i] = cartCoord_d2cartCoord(pt[i]);
+        }
+
+        for(int i=0;i<numElem;i++) {
+            oct->elem[i] = elem[i];
+        }
+        
+        int *srcBoxSet = (int*)malloc((numElem+1)*sizeof(int));
+        srcBoxes(pt,elem,oct->numElem,s,srcBoxSet,&oct->lmax,&oct->d,&oct->pt_min);
+        printf("lmax = %d\n",oct->lmax);
+        oct->fmmLevelSet = (int**)malloc((oct->lmax-oct->lmin+1)*sizeof(int*));
+        FMMLevelSet(srcBoxSet,oct->lmax,oct->fmmLevelSet);
+        
+        free(pt);
+        free(elem);
+        
+        free(srcBoxSet);
     }
     
-    for(int i=0;i<numElem;i++) {
-        oct->elem[i] = elem[i];
+    
+    
+    if(oct->srNumLevelArr==NULL) {
+        oct->srNumLevelArr = (int**)malloc((oct->lmax-oct->lmin+1)*sizeof(int*));
+        FMMLevelSetNumSR(oct->fmmLevelSet,oct->lmax,oct->srNumLevelArr);
     }
-    
-    //boxes at the bottom level
-    int *srcBoxSet = (int*)malloc((numElem+1)*sizeof(int));
-    srcBoxes(pt,elem,numElem,s,srcBoxSet,&oct->lmax,&oct->d,&oct->pt_min);
-    printf("lmax = %d\n",oct->lmax);
-    
-    oct->fmmLevelSet = (int**)malloc((oct->lmax-oct->lmin+1)*sizeof(int*));
-    FMMLevelSet(srcBoxSet,oct->lmax,oct->fmmLevelSet);
-    printf("successfully generated level related sets.\n");
-    
-    free(pt);
-    free(elem);
-    
+    printf("Memory for srNumLevelArr allocated and created.\n");
     
     if(oct->btmLvlElemIdx==NULL) {
         cartCoord nod[3], ctr;
@@ -3137,7 +3253,48 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     oct->rrCoaxMat = (cuFloatComplex*)malloc(oct->numRRCoaxTransVec*(pmax*(2*pmax*pmax+3*pmax+1)/6)*sizeof(cuFloatComplex));
     HOST_CALL(genRRSparseCoaxTransMat(wavNum,oct->rrCoaxTransVec,oct->numRRCoaxTransVec,pmax,oct->rrCoaxMat));
     
+    if(oct->ssTransDestArr==NULL) {
+        oct->ssTransDestArr = (int**)malloc((oct->lmax-oct->lmin)*sizeof(int*));
+    }
     
+    if(oct->ssTransIdx==NULL) {
+        oct->ssTransIdx = (transIdx**)malloc((oct->lmax-oct->lmin)*sizeof(transIdx*));
+    }
+    
+    if(oct->srTransOriginArr==NULL) {
+        oct->srTransOriginArr = (int**)malloc((oct->lmax-oct->lmin+1)*sizeof(int*));
+    }
+    
+    if(oct->srTransDestArr==NULL) {
+        oct->srTransDestArr = (int**)malloc((oct->lmax-oct->lmin+1)*sizeof(int*));
+    }
+    
+    if(oct->srTransIdx==NULL) {
+        oct->srTransIdx = (transIdx**)malloc((oct->lmax-oct->lmin+1)*sizeof(transIdx*));
+    }
+    
+    if(oct->rrTransOriginArr==NULL) {
+        oct->rrTransOriginArr = (int**)malloc((oct->lmax-oct->lmin)*sizeof(int*));
+    }
+    
+    if(oct->rrTransIdx==NULL) {
+        oct->rrTransIdx = (transIdx**)malloc((oct->lmax-oct->lmin)*sizeof(transIdx*));
+    }
+    
+    genSSIdxArrs(oct->fmmLevelSet,oct->lmax,oct->pt_min,oct->d,oct->rrCoaxTransVec,oct->numRRCoaxTransVec,
+            oct->ang,oct->numRotAng,oct->ssTransIdx,oct->ssTransDestArr);
+    printf("SS indices and arrays created.\n");
+    
+    genSRIdxArrs(oct->fmmLevelSet,oct->srNumLevelArr,oct->lmax,oct->pt_min,oct->d,oct->srCoaxTransVec,oct->numSRCoaxTransVec,
+            oct->ang,oct->numRotAng,oct->srTransIdx,oct->srTransOriginArr,oct->srTransDestArr);
+    printf("SR indices and arrays created.\n");
+    
+    genRRIdxArrs(oct->fmmLevelSet,oct->lmax,oct->pt_min,oct->d,oct->rrCoaxTransVec,oct->numRRCoaxTransVec,
+            oct->ang,oct->numRotAng,oct->rrTransIdx,oct->rrTransOriginArr);
+    printf("RR indices and arrays created.\n");
+    
+    
+    printf("successfully generated level related sets.\n");
     
     return EXIT_SUCCESS;
 }
@@ -3149,8 +3306,28 @@ __host__ void destroyOctree(octree *oct)
     
     for(int l=oct->lmin;l<=oct->lmax;l++) {
         free(oct->fmmLevelSet[l-oct->lmin]);
+        free(oct->srNumLevelArr[l-oct->lmin]);
+        free(oct->srTransIdx[l-oct->lmin]);
+        free(oct->srTransOriginArr[l-oct->lmin]);
+        free(oct->srTransDestArr[l-oct->lmin]);
+        
+        if(l>oct->lmin) {
+            free(oct->ssTransIdx[l-(oct->lmin+1)]);
+            free(oct->ssTransDestArr[l-(oct->lmin+1)]);
+            free(oct->rrTransIdx[l-(oct->lmin+1)]);
+            free(oct->rrTransOriginArr[l-(oct->lmin+1)]);
+        }
     }
     free(oct->fmmLevelSet);
+    free(oct->srNumLevelArr);
+    free(oct->srTransIdx);
+    free(oct->ssTransIdx);
+    free(oct->rrTransIdx);
+    
+    free(oct->ssTransDestArr);
+    free(oct->srTransOriginArr);
+    free(oct->srTransDestArr);
+    free(oct->rrTransOriginArr);
     
     free(oct->ang);
     free(oct->rotMat1);

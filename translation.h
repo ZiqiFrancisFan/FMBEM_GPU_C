@@ -302,14 +302,18 @@ __host__ void genRRCoaxTransVecsRotAngles(const int l, const double d, const car
         float **pVec, int *pNumVec, rotAng **pRotAngle, int *pNumRotAng);
 
 //generate indices for rotations and coaxial translations in the SS translation
-void genSSIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
-        const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numAng, 
-        transIdx **transIdxLevelSet);
+void genSSIdxArrs(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
+        const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numRot, 
+        transIdx **ssTransIdxLevelSet, int **ssTransDestArr);
+
+void genSRIdxArrs(int **fmmLevelSet, int **SRNumLevelArr, const int lmax, const cartCoord_d pt_min, 
+        const double d, const float *srCoaxTransVec, const int numSRTransVec, const rotAng *ang, 
+        const int numRot, transIdx **srTransIdxLevelArr, int **srTransOriginArr, int **srTransDestArr);
 
 //generate indices for rotations and coaxial translations in the RR translation
-void genRRIndices(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
+void genRRIdxArrs(int **fmmLevelSet, const int lmax, const cartCoord_d pt_min, const double d, 
         const float *rrCoaxTransVec, const int numRRTransVec, const rotAng *ang, const int numRot, 
-        transIdx **rrTransIdxLevelSet);
+        transIdx **rrTransIdxLevelSet, int **rrTransOriginArr);
 
 __host__ void initOctree(octree *oct);
 

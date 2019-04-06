@@ -134,6 +134,20 @@ extern "C" {
     void printLevelSetNumSR(int **numSet, int **pSet, const int lmax);
     
     void printFMMLevelSet(int **pSet, const int lmax);
+    
+    void printSSLevelTransIdxArr(transIdx **transIdxArr, const int lmax, int **fmmLevelSet);
+    
+    void printSSLevelTransDest(int **destLevelArr, const int lmax, int **fmmLevelSet);
+    
+    void printSRLevelTransIdxArr(transIdx **transIdxArr, const int lmax, int **srNumTransArr, int **fmmLevelSet);
+    
+    void printSRLevelTransDest(int **destLevelArr, const int lmax, int **srNumTransArr, int **fmmLevelSet);
+    
+    void printSRLevelTransOrigin(int **originLevelArr, const int lmax, int **srNumTransArr, int **fmmLevelSet);
+    
+    void printRRLevelTransIdxArr(transIdx **transIdxArr, const int lmax, int **fmmLevelSet);
+    
+    void printRRLevelTransOrigin(int **originLevelArr, const int lmax, int **fmmLevelSet);
 
 #ifdef __cplusplus
 }

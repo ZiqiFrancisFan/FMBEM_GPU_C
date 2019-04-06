@@ -187,8 +187,9 @@ __host__ void printFloatArray(const float *arr, const int num)
 __host__ void printIntArray(const int *arr, const int num)
 {
     for(int i=0;i<num;i++) {
-        printf("%d\n",arr[i]);
+        printf("%d ",arr[i]);
     }
+    printf("\n");
 }
 
 __host__ bool equalRotArrays(const rotAng *ang1, const rotAng *ang2, const int numAng)

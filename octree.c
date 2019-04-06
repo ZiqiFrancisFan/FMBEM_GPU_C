@@ -895,12 +895,12 @@ void FMMLevelSet(const int *btmLvl, const int lmax, int **pSet)
     //printf("allocated memory.\n");
     pSet[lmax-lmin] = (int*)malloc((btmLvl[0]+1)*sizeof(int));
     copySet(btmLvl,pSet[lmax-lmin]);
-    sortSet(pSet[lmax-lmin]);
+    //sortSet(pSet[lmax-lmin]);
     for(l=lmax-1;l>=lmin;l--) {
         prntLevelSet(pSet[l+1-lmin],l+1,set_temp);
         pSet[l-lmin] = (int*)malloc((set_temp[0]+1)*sizeof(int));
         copySet(set_temp,pSet[l-lmin]);
-        sortSet(pSet[l-lmin]);
+        //sortSet(pSet[l-lmin]);
     }
     //printf("completed FMMLvlSet_e\n");
 }
@@ -934,6 +934,99 @@ void printFMMLevelSet(int **pSet, const int lmax)
     for(int l=2;l<=lmax;l++) {
         printf("Level %d, number of boxes: %d\n",l,pSet[l-2][0]);
         printSet(pSet[l-2]);
+    }
+}
+
+void printTransIdxArr(const transIdx *arr, const int num)
+{
+    for(int i=0;i<num;i++) {
+        printf("(%d,%d) ",arr[i].coaxIdx,arr[i].rotIdx);
+    }
+    printf("\n");
+}
+
+void printSSLevelTransIdxArr(transIdx **transIdxArr, const int lmax, int **fmmLevelSet)
+{
+    printf("SS level translation index array: \n");
+    const int lmin = 3;
+    for(int l=lmax;l>=lmin;l--) {
+        printf("Level: %d\n",l);
+        printTransIdxArr(transIdxArr[l-lmin],fmmLevelSet[l-2][0]);
+    }
+}
+
+void printSSLevelTransDest(int **destLevelArr, const int lmax, int **fmmLevelSet)
+{
+    printf("SS level origin array: \n");
+    const int lmin = 3;
+    for(int l=lmax;l>=lmin;l--) {
+        printf("Level: %d\n",l);
+        printIntArray(destLevelArr[l-lmin],fmmLevelSet[l-2][0]);
+    }
+}
+
+void printSRLevelTransIdxArr(transIdx **transIdxArr, const int lmax, int **srNumTransArr, int **fmmLevelSet)
+{
+    printf("SR level translation index array: \n");
+    const int lmin = 2;
+    int totalNum;
+    for(int l=lmin;l<=lmax;l++) {
+        totalNum = 0;
+        for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            totalNum += srNumTransArr[l-lmin][i];
+        }
+        printf("Level: %d\n",l);
+        printTransIdxArr(transIdxArr[l-lmin],totalNum);
+    }
+}
+
+void printSRLevelTransDest(int **destLevelArr, const int lmax, int **srNumTransArr, int **fmmLevelSet)
+{
+    printf("SR level destination array: \n");
+    const int lmin = 2;
+    int totalNum;
+    for(int l=lmin;l<=lmax;l++) {
+        totalNum = 0;
+        for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            totalNum += srNumTransArr[l-lmin][i];
+        }
+        printf("Level: %d\n",l);
+        printIntArray(destLevelArr[l-lmin],totalNum);
+    }
+}
+
+void printSRLevelTransOrigin(int **originLevelArr, const int lmax, int **srNumTransArr, int **fmmLevelSet)
+{
+    printf("SR level origin array: \n");
+    const int lmin = 2;
+    int totalNum;
+    for(int l=lmin;l<=lmax;l++) {
+        totalNum = 0;
+        for(int i=0;i<fmmLevelSet[l-lmin][0];i++) {
+            totalNum += srNumTransArr[l-lmin][i];
+        }
+        printf("Level: %d\n",l);
+        printIntArray(originLevelArr[l-lmin],totalNum);
+    }
+}
+
+void printRRLevelTransIdxArr(transIdx **transIdxArr, const int lmax, int **fmmLevelSet)
+{
+    printf("RR level translation index array: \n");
+    const int lmin = 3;
+    for(int l=lmin;l<=lmax;l++) {
+        printf("Level: %d\n",l);
+        printTransIdxArr(transIdxArr[l-lmin],fmmLevelSet[l-2][0]);
+    }
+}
+
+void printRRLevelTransOrigin(int **originLevelArr, const int lmax, int **fmmLevelSet)
+{
+    printf("RR level origin array: \n");
+    const int lmin = 3;
+    for(int l=lmin;l<=lmax;l++) {
+        printf("Level: %d\n",l);
+        printIntArray(originLevelArr[l-lmin],fmmLevelSet[l-2][0]);
     }
 }
 
