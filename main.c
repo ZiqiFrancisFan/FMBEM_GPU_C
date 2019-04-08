@@ -24,42 +24,23 @@ int main (int argc, char** argv)
     CUDA_CALL(cudaMemGetInfo(&freeMem,&totalMem));
     printf("Available memory: %fGB\n",(float)freeMem/(1024*1024*1024));
     
-    octree oct;
-    initOctree(&oct);
-    printf("Successfully initialized octree.\n");
-    genOctree("sphere_10mm.obj",200,1,&oct);
-    printf("successfully generated octree.\n");
-    printf("Number of RR translations: %d\n",oct.numRRCoaxTransVec);
-    printFloatArray(oct.rrCoaxTransVec,oct.numRRCoaxTransVec);
-    printf("Number of SR translations: %d\n",oct.numSRCoaxTransVec);
-    printFloatArray(oct.srCoaxTransVec,oct.numSRCoaxTransVec);
-    printf("Number of rotation angles: %d\n",oct.numRotAng);
-    printRotAngArray(oct.ang,oct.numRotAng);
+    int p1 = 5, p2 = 2;
+    float t = 2.3, wavNum = 13.1;
+    cuFloatComplex *sparseMat1 = (cuFloatComplex*)calloc(sparseCoaxTransSize(p1),sizeof(cuFloatComplex));
+    genSRSparseCoaxTransMat(wavNum,&t,1,p1,sparseMat1);
     
-    //printf("Bottom element indices: \n");
-    //printIntArray(oct.btmLvlElemIdx,oct.numElem);
-    printSSLevelTransIdxArr(oct.ssTransIdx,oct.lmax,oct.fmmLevelSet);
-    printSSLevelTransDest(oct.ssTransDestArr,oct.lmax,oct.fmmLevelSet);
-    printSRLevelTransIdxArr(oct.srTransIdx,oct.lmax,oct.srNumLevelArr,oct.fmmLevelSet);
-    printSRLevelTransOrigin(oct.srTransOriginArr,oct.lmax,oct.srNumLevelArr,oct.fmmLevelSet);
-    printFMMLevelSet(oct.fmmLevelSet,oct.lmax);
-    printSRLevelTransDest(oct.srTransDestArr,oct.lmax,oct.srNumLevelArr,oct.fmmLevelSet);
     
-    printRRLevelTransIdxArr(oct.rrTransIdx,oct.lmax,oct.fmmLevelSet);
-    printRRLevelTransOrigin(oct.rrTransOriginArr,oct.lmax,oct.fmmLevelSet);
-    /*
-    for(int i=0;i<oct.numRotAng;i++) {
-        printf("%dth rotation matrix: \n",i);
-        printMat_cuFloatComplex(&(oct.rotMat1[i*oct.pmax*(4*oct.pmax*oct.pmax-1)/3]),1,
-                oct.pmax*(4*oct.pmax*oct.pmax-1)/3,1);
-    }
-     */
-    printf("element index: \n");
-    printIntArray(oct.btmLvlElemIdx,oct.numElem);
+    cuFloatComplex *sparseMat2 = (cuFloatComplex*)calloc(sparseCoaxTransSize(p2),sizeof(cuFloatComplex));
+    genSRSparseCoaxTransMat(wavNum,&t,1,p2,sparseMat2);
+    printMat_cuFloatComplex(sparseMat2,1,sparseCoaxTransSize(p2),1);
     
-    destroyOctree(&oct);
+    reduceSparseCoaxTransMat(sparseMat1,p1,sparseMat2,p2);
+    printMat_cuFloatComplex(sparseMat2,1,sparseCoaxTransSize(p2),1);
     
-    printf("successfully destroyed octree.\n");
+    
+    free(sparseMat1);
+    free(sparseMat2);
+    
     return EXIT_SUCCESS;
 }
 

@@ -127,6 +127,7 @@ extern "C" {
         float eps;
         float maxWavNum;
         int pmax;
+        int pmax_coax;
         
         int *btmLvlElemIdx;
         

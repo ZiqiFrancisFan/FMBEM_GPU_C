@@ -9,7 +9,53 @@
 #include "octree.h"
 #include "integral.h"
 
-void printMat_cuFloatComplex(const cuFloatComplex* A, const int numRow, const int numCol, 
+__host__ __device__ int sparseRotSize(const int p)
+{
+    return p*(4*p*p-1)/3;
+}
+
+__host__ __device__ int sparseCoaxTransSize(const int p)
+{
+    return p*(2*p*p+3*p+1)/6;
+}
+
+__host__ __device__ void reduceSparseRotMat(const cuFloatComplex *rot1, cuFloatComplex *rot2, const int p2)
+{
+    int matsize = sparseRotSize(p2);
+    memcpy(rot2,rot1,matsize*sizeof(cuFloatComplex));
+}
+
+__host__ __device__ int sparseCoaxMatBlockIdx(const int p, const int m)
+{
+    int idx = abs(m)*(2*abs(m)*abs(m)-(3+6*p)*abs(m)+1+6*(p+p*p))/6;
+    return idx;
+}
+
+__host__ __device__ void reduceSparseCoaxTransMat(const cuFloatComplex *coaxMat1, const int p1, 
+        cuFloatComplex *coaxMat2, const int p2)
+{
+    cuFloatComplex *tempMat1, *tempMat2;
+    int idx1, idx2;
+    for(int m=0;m<p2;m++) {
+        tempMat1 = (cuFloatComplex*)malloc((p1-m)*(p1-m)*sizeof(cuFloatComplex));
+        tempMat2 = (cuFloatComplex*)malloc((p2-m)*(p2-m)*sizeof(cuFloatComplex));
+        idx1 = sparseCoaxMatBlockIdx(p1,m);
+        idx2 = sparseCoaxMatBlockIdx(p2,m);
+        
+        memcpy(tempMat1,&coaxMat1[idx1],(p1-m)*(p1-m)*sizeof(cuFloatComplex));
+        for(int np=m;np<p2;np++) {
+            for(int n=m;n<p2;n++) {
+                tempMat2[IDXC0(np-m,n-m,p2-m)] = tempMat1[IDXC0(np-m,n-m,p1-m)];
+            }
+        }
+        memcpy(&coaxMat2[idx2],tempMat2,(p2-m)*(p2-m)*sizeof(cuFloatComplex));
+        
+        free(tempMat1);
+        free(tempMat2);
+    }
+}
+
+void printMat_cuFloatComplex(const cuFloatComplex *A, const int numRow, const int numCol, 
         const int lda)
 {
     for(int i=0;i<numRow;i++) {
@@ -2860,7 +2906,6 @@ void genSRIdxArrs(int **fmmLevelSet, int **SRNumLevelArr, const int lmax, const 
                         srTransIdxLevelArr[l-lmin][coaxTransIdx++].coaxIdx = k;
                         break;
                     }
-                    
                 }
                 //find the index of the rotation
                 for(int k=0;k<numRot;k++) {
@@ -3136,6 +3181,7 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     
     //compute the largest truncation number
     pmax = truncNum(wavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
+    oct->pmax_coax = pmax;
     oct->srCoaxMat = (cuFloatComplex*)malloc(oct->numSRCoaxTransVec*(pmax*(2*pmax*pmax+3*pmax+1)/6)*sizeof(cuFloatComplex));
     HOST_CALL(genSRSparseCoaxTransMat(wavNum,oct->srCoaxTransVec,oct->numSRCoaxTransVec,pmax,oct->srCoaxMat));
     
@@ -3249,6 +3295,8 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
     if(oct->rrCoaxMat!=NULL) {
         free(oct->rrCoaxMat);
     }
+    
+    //compute the largest truncation number of coaxial translation matrices for the current wave number
     pmax = truncNum(wavNum,oct->eps,1.5,pow(2,-oct->lmin)*oct->d);
     oct->rrCoaxMat = (cuFloatComplex*)malloc(oct->numRRCoaxTransVec*(pmax*(2*pmax*pmax+3*pmax+1)/6)*sizeof(cuFloatComplex));
     HOST_CALL(genRRSparseCoaxTransMat(wavNum,oct->rrCoaxTransVec,oct->numRRCoaxTransVec,pmax,oct->rrCoaxMat));
@@ -3302,7 +3350,10 @@ __host__ int genOctree(const char *filename, const float wavNum, const int s, oc
 __host__ void destroyOctree(octree *oct)
 {
     free(oct->pt);
+    oct->pt = NULL;
+    
     free(oct->elem);
+    oct->elem = NULL;
     
     for(int l=oct->lmin;l<=oct->lmax;l++) {
         free(oct->fmmLevelSet[l-oct->lmin]);
@@ -3319,25 +3370,41 @@ __host__ void destroyOctree(octree *oct)
         }
     }
     free(oct->fmmLevelSet);
+    oct->fmmLevelSet = NULL;
     free(oct->srNumLevelArr);
+    oct->srNumLevelArr = NULL;
     free(oct->srTransIdx);
+    oct->srTransIdx = NULL;
     free(oct->ssTransIdx);
+    oct->ssTransIdx = NULL;
     free(oct->rrTransIdx);
+    oct->rrTransIdx = NULL;
     
     free(oct->ssTransDestArr);
+    oct->ssTransDestArr = NULL;
     free(oct->srTransOriginArr);
+    oct->srTransDestArr = NULL;
     free(oct->srTransDestArr);
+    oct->srTransDestArr = NULL;
     free(oct->rrTransOriginArr);
+    oct->rrTransOriginArr = NULL;
     
     free(oct->ang);
+    oct->ang = NULL;
     free(oct->rotMat1);
+    oct->rotMat1 = NULL;
     free(oct->rotMat2);
+    oct->rotMat2 = NULL;
     
     free(oct->srCoaxTransVec);
+    oct->srCoaxTransVec = NULL;
     free(oct->srCoaxMat);
+    oct->srCoaxMat = NULL;
     
     free(oct->rrCoaxTransVec);
+    oct->rrCoaxTransVec = NULL;
     free(oct->rrCoaxMat);
+    oct->rrCoaxMat = NULL;
     
     free(oct->btmLvlElemIdx);
 }
@@ -3345,9 +3412,19 @@ __host__ void destroyOctree(octree *oct)
 __host__ int OprL(const float wavNum, const octree *oct, const float *intPt, const float *intWgt, 
         const cuFloatComplex *q, cuFloatComplex *prod)
 {
-    int p, idx, pCur, pNext;
-    cuFloatComplex *elemCoeff, **xCoeff, **yCoeff, *tempCoeff;
+    int p, idx, pCur, pNext, pPrev, sparseMatSize, numBx, numSRTrans;
+    cuFloatComplex *elemCoeff, **xCoeff, **yCoeff, *tempCoeff_h, *tempCoeff_d, 
+            *tempRotMat_h, *tempRotMat_d, *tempCoaxMat_h, *tempCoaxMat_d, *prod_h, *prod_d;
     cartCoord x_lp;
+    
+    int numBlocksPerGrid, numThreadsPerBlock;
+    dim3 gridStruct, blockStruct;
+    
+    //use one dimension in kernel launch
+    gridStruct.y = 1;
+    gridStruct.z = 1;
+    blockStruct.y = 1;
+    blockStruct.z = 1;
     
     //allocate memory for upward pass
     xCoeff = (cuFloatComplex**)malloc((oct->lmax-oct->lmin+1)*sizeof(cuFloatComplex*));
@@ -3357,7 +3434,7 @@ __host__ int OprL(const float wavNum, const octree *oct, const float *intPt, con
     }
     
     //decide the truncation number of the bottom level
-    p = truncNum(wavNum,0.05,1.5,pow(2,-oct->lmax)*oct->d);
+    p = truncNum(wavNum,TRUNCERR,1.5,pow(2,-oct->lmax)*oct->d);
     
     //allocate memory for the element related coefficients
     elemCoeff = (cuFloatComplex*)malloc(oct->numElem*p*p*sizeof(cuFloatComplex));
@@ -3369,6 +3446,8 @@ __host__ int OprL(const float wavNum, const octree *oct, const float *intPt, con
         
         //compute the expansion point of the current element
         x_lp = cartCoord_d2cartCoord(descale(boxCenter(idx,oct->lmax),oct->pt_min,oct->d));
+        
+        //compute the coefficients of the current element
         bottomLevelCoeff_L(wavNum,oct->elem[i],q[i],oct->pt,x_lp,intPt,intWgt,elemCoeff,p);
         
         //update the bottom level coefficients using the element coefficients
@@ -3379,16 +3458,309 @@ __host__ int OprL(const float wavNum, const octree *oct, const float *intPt, con
     free(elemCoeff);
     
     //upward pass
-    for(int l=oct->lmax;l>oct->lmin;l--) {
-        //compute the truncation number p for the current and the next level
-        pCur = truncNum(wavNum,0.05,1.5,pow(2,-l)*oct->d);
-        pNext = truncNum(wavNum,0.05,1.5,pow(2,-(l-1))*oct->d);
+    for(int l=oct->lmax;l > oct->lmin;l--) {
+        //get the number of boxes in the current level
+        numBx = oct->fmmLevelSet[l-oct->lmin][0];
         
-        tempCoeff = (cuFloatComplex*)calloc(oct->fmmLevelSet[l-oct->lmin][0]*pNext*pNext,sizeof(cuFloatComplex));
-        for(int i=0;i<oct->fmmLevelSet[l-oct->lmin][0];i++) {
-            memcpy(&tempCoeff[pNext*pNext*i],&xCoeff[l-oct->lmin][pCur*pCur*i],pCur*pCur*sizeof(cuFloatComplex));
+        //compute the truncation number p for the current and the next level
+        pCur = truncNum(wavNum,TRUNCERR,1.5,pow(2,-l)*oct->d);
+        pNext = truncNum(wavNum,TRUNCERR,1.5,pow(2,-(l-1))*oct->d);
+        
+        //allocate host memory for box coefficients
+        tempCoeff_h = (cuFloatComplex*)calloc(numBx*pNext*pNext,sizeof(cuFloatComplex));
+        
+        //move the original coefficients to a new array
+        for(int i=0;i<numBx;i++) {
+            memcpy(&tempCoeff_h[pNext*pNext*i],&xCoeff[l-oct->lmin][pCur*pCur*i],pCur*pCur*sizeof(cuFloatComplex));
         }
+        
+        //move coefficients at level to the device
+        CUDA_CALL(cudaMalloc(&tempCoeff_d,numBx*pNext*pNext*sizeof(cuFloatComplex)));
+        CUDA_CALL(cudaMemcpy(tempCoeff_d,tempCoeff_h,numBx*pNext*pNext*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+        
+        //allocate memory for product
+        prod_h = (cuFloatComplex*)malloc(numBx*pNext*pNext*sizeof(cuFloatComplex));
+        CUDA_CALL(cudaMalloc(&prod_d,numBx*pNext*pNext*sizeof(cuFloatComplex)));
+        
+        //allocate memory for rotation matrices and coaxial translation matrices at level l
+        tempRotMat_h = (cuFloatComplex*)calloc(numBx*sparseRotSize(pNext),sizeof(cuFloatComplex));
+        tempCoaxMat_h = (cuFloatComplex*)calloc(numBx*sparseCoaxTransSize(pNext),sizeof(cuFloatComplex));
+        
+        //reduce existing matrices and move them to the temporary space allocated above
+        sparseMatSize = sparseRotSize(oct->pmax);
+        for(int i=0;i<numBx;i++) {
+            idx = oct->ssTransIdx[l-(oct->lmin+1)][i].rotIdx;
+            reduceSparseRotMat(&oct->rotMat1[idx*sparseMatSize],&tempRotMat_h[i*sparseRotSize(pNext)],pNext);
+        }
+        
+        //allocate device memory for rotationa matrices
+        CUDA_CALL(cudaMalloc(&tempRotMat_d,numBx*sparseRotSize(pNext)*sizeof(cuFloatComplex)));
+        CUDA_CALL(cudaMemcpy(tempRotMat_d,tempRotMat_h,numBx*sparseRotSize(pNext)*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        //set up kernel launch parameters
+        numThreadsPerBlock = 32;
+        numBlocksPerGrid = (numBx+numThreadsPerBlock-1)/numThreadsPerBlock;
+        gridStruct.x = numBlocksPerGrid;
+        blockStruct.x = numThreadsPerBlock;
+        
+        //first product from the first rotation matrices
+        cuSparseRotsVecsMul<<<gridStruct,blockStruct>>>(tempRotMat_d,tempCoeff_d,numBx,pNext,prod_d);
+        CUDA_CALL(cudaMemcpy(prod_h,prod_d,numBx*pNext*pNext*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+        
+        //making the first products the second coefficient vectors
+        memcpy(tempCoeff_h,prod_h,numBx*pNext*pNext*sizeof(cuFloatComplex));
+        CUDA_CALL(cudaMemcpy(tempCoeff_d,tempCoeff_h,numBx*pNext*pNext*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+        
+        //second prodct from the coaxial translation matrices
+        sparseMatSize = sparseCoaxTransSize(oct->pmax_coax);
+        for(int i=0;i<numBx;i++) {
+            idx = oct->ssTransIdx[l-(oct->lmin+1)][i].coaxIdx;
+            reduceSparseCoaxTransMat(&oct->rrCoaxMat[idx*sparseMatSize],oct->pmax_coax,
+                    &tempCoaxMat_h[i*sparseCoaxTransSize(pNext)],pNext);
+        }
+        
+        //move the coaxial translation matrices to the device
+        CUDA_CALL(cudaMalloc(&tempCoaxMat_d,numBx*sparseCoaxTransSize(pNext)*sizeof(cuFloatComplex)));
+        CUDA_CALL(cudaMemcpy(tempCoaxMat_d,tempCoaxMat_h,numBx*sparseCoaxTransSize(pNext)*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        cuSparseCoaxTransMatsVecsMul<<<gridStruct,blockStruct>>>(tempCoaxMat_d,tempCoeff_d,numBx,pNext,prod_d);
+        CUDA_CALL(cudaMemcpy(prod_h,prod_d,numBx*pNext*pNext*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+        
+        //making the second products the second coefficient vectors
+        memcpy(tempCoeff_h,prod_h,numBx*pNext*pNext*sizeof(cuFloatComplex));
+        CUDA_CALL(cudaMemcpy(tempCoeff_d,tempCoeff_h,numBx*pNext*pNext*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+        
+        
+        //reduce existing second rotation matrices and move them to the temporary space allocated above
+        sparseMatSize = sparseRotSize(oct->pmax);
+        for(int i=0;i<numBx;i++) {
+            idx = oct->ssTransIdx[l-(oct->lmin+1)][i].rotIdx;
+            reduceSparseRotMat(&oct->rotMat2[idx*sparseMatSize],&tempRotMat_h[i*sparseRotSize(pNext)],pNext);
+        }
+        CUDA_CALL(cudaMemcpy(tempRotMat_d,tempRotMat_h,numBx*sparseRotSize(pNext)*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        //third product from the second rotation matrices
+        cuSparseRotsVecsMul<<<gridStruct,blockStruct>>>(tempRotMat_d,tempCoeff_d,numBx,pNext,prod_d);
+        CUDA_CALL(cudaMemcpy(prod_h,prod_d,numBx*pNext*pNext*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+        
+        
+        
+        
+        //combine coefficients of the same boxes at level l-1
+        for(int i=0;i<numBx;i++) {
+            idx = oct->ssTransDestArr[l-(oct->lmin+1)][i];
+            for(int j=0;j<pNext*pNext;j++) {
+                xCoeff[l-1-oct->lmin][idx*pNext*pNext+j] = cuCaddf(xCoeff[l-1-oct->lmin][idx*pNext*pNext+j],
+                        prod_h[i*pNext*pNext+j]);
+            }
+        }
+        
+        //free memory
+        free(prod_h);
+        free(tempRotMat_h);
+        free(tempCoaxMat_h);
+        free(tempCoeff_h);
+        
+        CUDA_CALL(cudaFree(prod_d));
+        CUDA_CALL(cudaFree(tempRotMat_d));
+        CUDA_CALL(cudaFree(tempCoaxMat_d));
+        CUDA_CALL(cudaFree(tempCoeff_d));
     }
+    
+    //perform the downward pass
+    yCoeff = (cuFloatComplex**)malloc((oct->lmax-oct->lmin+1)*sizeof(cuFloatComplex*));
+    for(int l=oct->lmin;l<=oct->lmax;l++) {
+        p = truncNum(wavNum,oct->eps,1.5,pow(2,-l)*oct->d);
+        yCoeff[l-oct->lmin] = (cuFloatComplex*)calloc(oct->fmmLevelSet[l-oct->lmin][0]*p*p,sizeof(cuFloatComplex));
+    }
+    
+    for(int l=oct->lmin;l<=oct->lmax;l++) {
+        //update the total number of sr translations at level l
+        numSRTrans = 0;
+        for(int i=0;i<oct->fmmLevelSet[l-oct->lmin][0];i++) {
+            numSRTrans += oct->srNumLevelArr[l-oct->lmin][i];
+        }
+        
+        
+        
+        p = truncNum(wavNum,TRUNCERR,1.5,pow(2,-l)*oct->d);
+        tempCoeff_h = (cuFloatComplex*)malloc(numSRTrans*p*p*sizeof(cuFloatComplex));
+        
+        for(int i=0;i<numSRTrans;i++) {
+            idx = oct->srTransOriginArr[l-oct->lmin][i];
+            memcpy(&tempCoeff_h[i*p*p],&(xCoeff[l-oct->lmin][idx*p*p]),p*p*sizeof(cuFloatComplex));
+        }
+        
+        CUDA_CALL(cudaMalloc(&tempCoeff_d,numSRTrans*p*p*sizeof(cuFloatComplex)));
+        CUDA_CALL(cudaMemcpy(tempCoeff_d,tempCoeff_h,numSRTrans*p*p*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        //get the corresponding rotation matrices
+        tempRotMat_h = (cuFloatComplex*)malloc(numSRTrans*sparseRotSize(p)*sizeof(cuFloatComplex));
+        
+        sparseMatSize = sparseRotSize(oct->pmax);
+        for(int i=0;i<numSRTrans;i++) {
+            idx = oct->srTransIdx[l-oct->lmin][i].rotIdx;
+            reduceSparseRotMat(&oct->rotMat1[idx*sparseMatSize],&tempRotMat_h[i*sparseRotSize(p)],p);
+        }
+        
+        //allocate memory for the rotation matrices
+        CUDA_CALL(cudaMalloc(&tempRotMat_d,numSRTrans*p*p*sizeof(cuFloatComplex)));
+        CUDA_CALL(cudaMemcpy(tempRotMat_d,tempRotMat_h,numSRTrans*sparseRotSize(p)*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        prod_h = (cuFloatComplex*)malloc(numSRTrans*p*p*sizeof(cuFloatComplex));
+        CUDA_CALL(cudaMalloc(&prod_d,numSRTrans*p*p*sizeof(cuFloatComplex)));
+        
+        //set up kernel launch parameters
+        numThreadsPerBlock = 32;
+        numBlocksPerGrid = (numSRTrans+numThreadsPerBlock-1)/numThreadsPerBlock;
+        gridStruct.x = numBlocksPerGrid;
+        blockStruct.x = numThreadsPerBlock;
+        
+        //product between sparse matrices and vectors
+        cuSparseRotsVecsMul<<<gridStruct,blockStruct>>>(tempRotMat_d,tempCoeff_d,numSRTrans,p,prod_d);
+        CUDA_CALL(cudaMemcpy(prod_h,prod_d,numSRTrans*p*p*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+        
+        memcpy(tempCoeff_h,prod_h,numSRTrans*p*p*sizeof(cuFloatComplex));
+        CUDA_CALL(cudaMemcpy(tempCoeff_d,tempCoeff_h,numSRTrans*p*p*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        //allocate host memory for sr coaxial translation matrices at level l
+        tempCoaxMat_h = (cuFloatComplex*)malloc(numSRTrans*sparseCoaxTransSize(p)*sizeof(cuFloatComplex));
+        
+        //get all the coaxial translation matrices
+        sparseMatSize = sparseCoaxTransSize(oct->pmax_coax);
+        for(int i=0;i<numSRTrans;i++) {
+            idx = oct->srTransIdx[l-oct->lmin][i].coaxIdx;
+            reduceSparseCoaxTransMat(&oct->srCoaxMat[idx*sparseMatSize],oct->pmax_coax,
+                    &tempCoaxMat_h[i*sparseCoaxTransSize(p)],p);
+        }
+        
+        //move the coaxial translation matrices to the device
+        CUDA_CALL(cudaMalloc(&tempCoaxMat_d,numSRTrans*sparseCoaxTransSize(p)*sizeof(cuFloatComplex)));
+        CUDA_CALL(cudaMemcpy(tempCoaxMat_d,tempCoaxMat_h,numSRTrans*sparseCoaxTransSize(p)*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        //get the products
+        cuSparseCoaxTransMatsVecsMul<<<gridStruct,blockStruct>>>(tempCoaxMat_d,tempCoeff_d,numSRTrans,p,prod_d);
+        CUDA_CALL(cudaMemcpy(prod_h,prod_d,numSRTrans*p*p*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+        
+        //move the products to the coefficients
+        memcpy(tempCoeff_h,prod_h,numSRTrans*p*p*sizeof(cuFloatComplex));
+        CUDA_CALL(cudaMemcpy(tempCoeff_d,tempCoeff_h,numSRTrans*p*p*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        //retrieve the second rotation matrices
+        sparseMatSize = sparseRotSize(oct->pmax);
+        for(int i=0;i<numSRTrans;i++) {
+            idx = oct->srTransIdx[l-oct->lmin][i].rotIdx;
+            reduceSparseRotMat(&oct->rotMat2[idx*sparseMatSize],&tempRotMat_h[i*sparseRotSize(p)],p);
+        }
+        CUDA_CALL(cudaMemcpy(tempRotMat_d,tempRotMat_h,numSRTrans*sparseRotSize(p)*sizeof(cuFloatComplex),
+                cudaMemcpyHostToDevice));
+        
+        //matrix-vector product
+        cuSparseRotsVecsMul<<<gridStruct,blockStruct>>>(tempRotMat_d,tempCoeff_d,numSRTrans,p,prod_d);
+        CUDA_CALL(cudaMemcpy(prod_h,prod_d,numSRTrans*p*p*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+        
+        //combine coefficients
+        for(int i=0;i<numSRTrans;i++) {
+            idx = oct->srTransDestArr[l-oct->lmin][i];
+            for(int j=0;j<p*p;j++) {
+                yCoeff[l-oct->lmin][p*p*idx+j] = cuCaddf(yCoeff[l-oct->lmin][p*p*idx+j],prod_h[p*p*i+j]);
+            }
+        }
+        
+        free(tempCoeff_h);
+        free(prod_h);
+        free(tempRotMat_h);
+        free(tempCoaxMat_h);
+        
+        CUDA_CALL(cudaFree(tempCoeff_d));
+        CUDA_CALL(cudaFree(prod_d));
+        CUDA_CALL(cudaFree(tempRotMat_d));
+        CUDA_CALL(cudaFree(tempCoaxMat_d));
+        
+        //process the RR translations
+        if(l > oct->lmin) {
+            pPrev = truncNum(wavNum,TRUNCERR,1.5,pow(2,-(l-1))*oct->d);
+            
+            //get the number of boxes in the current level
+            numBx = oct->fmmLevelSet[l-oct->lmin][0];
+            tempCoeff_h = (cuFloatComplex*)malloc(numBx*pPrev*pPrev*sizeof(cuFloatComplex));
+            for(int i=0;i<numBx;i++) {
+                idx = oct->rrTransOriginArr[l-(oct->lmin+1)][i];
+                memcpy(&tempCoeff_h[i*pPrev*pPrev],&(yCoeff[l-1-oct->lmin][idx*pPrev*pPrev]),pPrev*pPrev);
+            }
+            
+            //retrieve the first rotation matrices
+            tempRotMat_h = (cuFloatComplex*)malloc(numBx*sparseRotSize(pPrev)*sizeof(cuFloatComplex));
+            for(int i=0;i<numBx;i++) {
+                idx = oct->rrTransIdx[l-(oct->lmin+1)][i].rotIdx;
+                reduceSparseRotMat(&(oct->rotMat1[idx*sparseRotSize(oct->pmax)]),&tempRotMat_h[i*sparseRotSize(pPrev)],pPrev);
+            }
+            
+            CUDA_CALL(cudaMalloc(&tempRotMat_d,numBx*sparseRotSize(pPrev)*sizeof(cuFloatComplex)));
+            CUDA_CALL(cudaMemcpy(tempRotMat_d,tempRotMat_h,numBx*sparseRotSize(pPrev)*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+            
+            prod_h = (cuFloatComplex*)malloc(numBx*pPrev*pPrev*sizeof(cuFloatComplex));
+            CUDA_CALL(cudaMalloc(&prod_d,numBx*pPrev*pPrev*sizeof(cuFloatComplex)));
+            
+            numThreadsPerBlock = 32;
+            numBlocksPerGrid = (numBx+numThreadsPerBlock-1)/numThreadsPerBlock;
+            gridStruct.x = numBlocksPerGrid;
+            blockStruct.x = numThreadsPerBlock;
+            
+            //matrix-vector multiplication of the first rotation
+            cuSparseRotsVecsMul<<<gridStruct,blockStruct>>>(tempRotMat_d,tempCoeff_d,numBx,pPrev,prod_d);
+            CUDA_CALL(cudaMemcpy(prod_h,prod_d,numBx*pPrev*pPrev*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+            
+            memcpy(tempCoeff_h,prod_h,numBx*pPrev*pPrev*sizeof(cuFloatComplex));
+            CUDA_CALL(cudaMemcpy(tempCoeff_d,tempCoeff_h,numBx*pPrev*pPrev*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+            
+            //retrieve coaxial translation matrices
+            tempCoaxMat_h = (cuFloatComplex*)malloc(numBx*sparseCoaxTransSize(pPrev)*sizeof(cuFloatComplex));
+            sparseMatSize = sparseCoaxTransSize(oct->pmax_coax);
+            for(int i=0;i<numBx;i++) {
+                idx = oct->rrTransIdx[l-(oct->lmin+1)][i].coaxIdx;
+                reduceSparseCoaxTransMat(&(oct->rrCoaxMat[idx*sparseMatSize]),sparseMatSize,
+                        &tempCoaxMat_h[i*sparseCoaxTransSize(pPrev)],pPrev);
+            }
+            
+            CUDA_CALL(cudaMalloc(&tempCoaxMat_d,numBx*sparseCoaxTransSize(pPrev)*sizeof(cuFloatComplex)));
+            
+            //matrix-vector product of the coaxial translation matrix
+            cuSparseCoaxTransMatsVecsMul<<<gridStruct,blockStruct>>>(tempCoaxMat_d,tempCoeff_d,numBx,pPrev,prod_d);
+            
+            CUDA_CALL(cudaMemcpy(prod_h,prod_d,numBx*pPrev*pPrev*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+            
+            memcpy(tempCoeff_h,prod_h,numBx*pPrev*pPrev*sizeof(cuFloatComplex));
+            CUDA_CALL(cudaMemcpy(tempCoeff_d,tempCoeff_h,numBx*pPrev*pPrev*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+            
+            for(int i=0;i<numBx;i++) {
+                idx = oct->rrTransIdx[l-(oct->lmin+1)][i].rotIdx;
+                reduceSparseRotMat(&(oct->rotMat2[idx*sparseRotSize(oct->pmax)]),&tempRotMat_h[i*sparseRotSize(pPrev)],pPrev);
+            }
+            CUDA_CALL(cudaMemcpy(tempRotMat_d,tempRotMat_h,numBx*sparseRotSize(pPrev)*sizeof(cuFloatComplex),cudaMemcpyHostToDevice));
+            
+            cuSparseRotsVecsMul<<<gridStruct,blockStruct>>>(tempRotMat_d,tempCoeff_d,numBx,pPrev,prod_d);
+            CUDA_CALL(cudaMemcpy(prod_h,prod_d,numBx*pPrev*pPrev*sizeof(cuFloatComplex),cudaMemcpyDeviceToHost));
+            
+            for(int i=0;i<numBx;i++) {
+                for(int j=0;j<p*p;j++) {
+                    yCoeff[l-oct->lmin][i*p*p+j] = cuCaddf(yCoeff[l-oct->lmin][i*p*p+j],prod_h[i*pPrev*pPrev+j]);
+                }
+            }
+            
+        }
+        
+        
+    }
+    
     
     
     

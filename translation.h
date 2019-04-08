@@ -28,6 +28,10 @@
 #define PI 3.1415926535897932f
 #endif
 
+#ifndef TRUNCERR
+#define TRUNCERR (0.05f)
+#endif
+
 #ifndef max
 #define max(a,b) \
 ({ __typeof__ (a) _a = (a); \
@@ -120,6 +124,15 @@ return EXIT_FAILURE; } \
 }\
 while(0)
 #endif
+
+__host__ __device__ int sparseRotSize(const int p);
+
+__host__ __device__ int sparseCoaxTransSize(const int p);
+
+__host__ __device__ void reduceSparseRotMat(const cuFloatComplex *rot1, cuFloatComplex *rot2, const int p2);
+
+__host__ __device__ void reduceSparseCoaxTransMat(const cuFloatComplex *coaxMat1, const int p1, 
+        cuFloatComplex *coaxMat2, const int p2);
 
 __host__ cuFloatComplex gsl_complex2cuFloatComplex(const gsl_complex rhs);
 
